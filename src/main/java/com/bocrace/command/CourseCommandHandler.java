@@ -280,11 +280,18 @@ public class CourseCommandHandler implements CommandExecutor, TabCompleter {
         sender.sendMessage("");
         
         // Checklist
+        boolean startSet = course.getStartRegion() != null && 
+                          course.getStartRegion().getMin() != null && 
+                          course.getStartRegion().getMax() != null;
+        boolean finishSet = course.getFinishRegion() != null && 
+                           course.getFinishRegion().getMin() != null && 
+                           course.getFinishRegion().getMax() != null;
+        
         sender.sendMessage("§6Checklist:");
         sender.sendMessage("  " + (course.getCourseLobbySpawn() != null ? "§a✓" : "§c✗") + " §7Course Lobby: " + (course.getCourseLobbySpawn() != null ? "§aSET" : "§cMISSING"));
         sender.sendMessage("  " + (spawnCount > 0 ? "§a✓" : "§c✗") + " §7Player Spawns: §f" + spawnCount + " §7(" + mode + "§7)");
-        sender.sendMessage("  " + (course.getStartPoint1() != null && course.getStartPoint2() != null ? "§a✓" : "§c✗") + " §7Start Line: " + (course.getStartPoint1() != null && course.getStartPoint2() != null ? "§aSET" : "§cMISSING"));
-        sender.sendMessage("  " + (course.getFinishPoint1() != null && course.getFinishPoint2() != null ? "§a✓" : "§c✗") + " §7Finish Line: " + (course.getFinishPoint1() != null && course.getFinishPoint2() != null ? "§aSET" : "§cMISSING"));
+        sender.sendMessage("  " + (startSet ? "§a✓" : "§c✗") + " §7Start Line: " + (startSet ? "§aSET" : "§cMISSING"));
+        sender.sendMessage("  " + (finishSet ? "§a✓" : "§c✗") + " §7Finish Line: " + (finishSet ? "§aSET" : "§cMISSING"));
         sender.sendMessage("  " + (course.getCheckpoints().size() > 0 ? "§a✓" : "§7○") + " §7Checkpoints: §f" + course.getCheckpoints().size());
         
         // Next step (single command)
@@ -294,9 +301,9 @@ public class CourseCommandHandler implements CommandExecutor, TabCompleter {
             sender.sendMessage("  §7→ §a/bocrace setup " + courseName + " course_lobby");
         } else if (spawnCount == 0) {
             sender.sendMessage("  §7→ §a/bocrace setup " + courseName + " player_spawn");
-        } else if (course.getStartPoint1() == null || course.getStartPoint2() == null) {
+        } else if (!startSet) {
             sender.sendMessage("  §7→ §a/bocrace setup " + courseName + " start");
-        } else if (course.getFinishPoint1() == null || course.getFinishPoint2() == null) {
+        } else if (!finishSet) {
             sender.sendMessage("  §7→ §a/bocrace setup " + courseName + " finish");
         } else {
             sender.sendMessage("  §7→ §aStructurally complete. Add checkpoints if desired.");

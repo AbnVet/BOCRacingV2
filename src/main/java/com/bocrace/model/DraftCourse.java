@@ -20,13 +20,11 @@ public class DraftCourse {
     // List of player spawns (each with yaw, pitch=0)
     private List<Location> playerSpawns;
     
-    // Start region (two block coordinates)
-    private BlockCoord startPoint1;
-    private BlockCoord startPoint2;
+    // Start region (ground volume with height=2)
+    private VolumeRegion startRegion;
     
-    // Finish region (two block coordinates)
-    private BlockCoord finishPoint1;
-    private BlockCoord finishPoint2;
+    // Finish region (ground volume with height=2)
+    private VolumeRegion finishRegion;
     
     // Checkpoints (each with two block coordinates and index)
     private List<CheckpointRegion> checkpoints;
@@ -88,37 +86,22 @@ public class DraftCourse {
         this.playerSpawns.add(spawn);
     }
     
-    public BlockCoord getStartPoint1() {
-        return startPoint1;
+    public VolumeRegion getStartRegion() {
+        return startRegion;
     }
     
-    public void setStartPoint1(BlockCoord startPoint1) {
-        this.startPoint1 = startPoint1;
+    public void setStartRegion(VolumeRegion startRegion) {
+        this.startRegion = startRegion;
     }
     
-    public BlockCoord getStartPoint2() {
-        return startPoint2;
+    public VolumeRegion getFinishRegion() {
+        return finishRegion;
     }
     
-    public void setStartPoint2(BlockCoord startPoint2) {
-        this.startPoint2 = startPoint2;
+    public void setFinishRegion(VolumeRegion finishRegion) {
+        this.finishRegion = finishRegion;
     }
     
-    public BlockCoord getFinishPoint1() {
-        return finishPoint1;
-    }
-    
-    public void setFinishPoint1(BlockCoord finishPoint1) {
-        this.finishPoint1 = finishPoint1;
-    }
-    
-    public BlockCoord getFinishPoint2() {
-        return finishPoint2;
-    }
-    
-    public void setFinishPoint2(BlockCoord finishPoint2) {
-        this.finishPoint2 = finishPoint2;
-    }
     
     public List<CheckpointRegion> getCheckpoints() {
         return checkpoints;
@@ -180,6 +163,47 @@ public class DraftCourse {
         
         public void setZ(int z) {
             this.z = z;
+        }
+    }
+    
+    /**
+     * Volume region with min/max bounds (for start/finish with height=2)
+     */
+    public static class VolumeRegion {
+        private String world;
+        private BlockCoord min;
+        private BlockCoord max;
+        
+        public VolumeRegion() {}
+        
+        public VolumeRegion(String world, BlockCoord min, BlockCoord max) {
+            this.world = world;
+            this.min = min;
+            this.max = max;
+        }
+        
+        public String getWorld() {
+            return world;
+        }
+        
+        public void setWorld(String world) {
+            this.world = world;
+        }
+        
+        public BlockCoord getMin() {
+            return min;
+        }
+        
+        public void setMin(BlockCoord min) {
+            this.min = min;
+        }
+        
+        public BlockCoord getMax() {
+            return max;
+        }
+        
+        public void setMax(BlockCoord max) {
+            this.max = max;
         }
     }
     

@@ -106,36 +106,36 @@ public class CourseManager {
             }
         }
         
-        // Start region
-        if (course.getStartPoint1() != null) {
-            BlockCoord p1 = course.getStartPoint1();
-            config.set("start.point1.world", p1.getWorld());
-            config.set("start.point1.x", p1.getX());
-            config.set("start.point1.y", p1.getY());
-            config.set("start.point1.z", p1.getZ());
-        }
-        if (course.getStartPoint2() != null) {
-            BlockCoord p2 = course.getStartPoint2();
-            config.set("start.point2.world", p2.getWorld());
-            config.set("start.point2.x", p2.getX());
-            config.set("start.point2.y", p2.getY());
-            config.set("start.point2.z", p2.getZ());
+        // Start region (new format: min/max volume)
+        if (course.getStartRegion() != null) {
+            DraftCourse.VolumeRegion region = course.getStartRegion();
+            config.set("start.world", region.getWorld());
+            if (region.getMin() != null) {
+                config.set("start.min.x", region.getMin().getX());
+                config.set("start.min.y", region.getMin().getY());
+                config.set("start.min.z", region.getMin().getZ());
+            }
+            if (region.getMax() != null) {
+                config.set("start.max.x", region.getMax().getX());
+                config.set("start.max.y", region.getMax().getY());
+                config.set("start.max.z", region.getMax().getZ());
+            }
         }
         
-        // Finish region
-        if (course.getFinishPoint1() != null) {
-            BlockCoord p1 = course.getFinishPoint1();
-            config.set("finish.point1.world", p1.getWorld());
-            config.set("finish.point1.x", p1.getX());
-            config.set("finish.point1.y", p1.getY());
-            config.set("finish.point1.z", p1.getZ());
-        }
-        if (course.getFinishPoint2() != null) {
-            BlockCoord p2 = course.getFinishPoint2();
-            config.set("finish.point2.world", p2.getWorld());
-            config.set("finish.point2.x", p2.getX());
-            config.set("finish.point2.y", p2.getY());
-            config.set("finish.point2.z", p2.getZ());
+        // Finish region (new format: min/max volume)
+        if (course.getFinishRegion() != null) {
+            DraftCourse.VolumeRegion region = course.getFinishRegion();
+            config.set("finish.world", region.getWorld());
+            if (region.getMin() != null) {
+                config.set("finish.min.x", region.getMin().getX());
+                config.set("finish.min.y", region.getMin().getY());
+                config.set("finish.min.z", region.getMin().getZ());
+            }
+            if (region.getMax() != null) {
+                config.set("finish.max.x", region.getMax().getX());
+                config.set("finish.max.y", region.getMax().getY());
+                config.set("finish.max.z", region.getMax().getZ());
+            }
         }
         
         // Checkpoints
@@ -217,44 +217,92 @@ public class CourseManager {
             }
         }
         
-        // Start region
-        if (config.contains("start.point1.world")) {
+        // Start region (new format: min/max volume, with migration from old format)
+        if (config.contains("start.point1.world") && config.contains("start.point2.world")) {
+            // Old format - migrate to new format
             BlockCoord p1 = new BlockCoord(
                 config.getString("start.point1.world"),
                 config.getInt("start.point1.x"),
                 config.getInt("start.point1.y"),
                 config.getInt("start.point1.z")
             );
-            course.setStartPoint1(p1);
-        }
-        if (config.contains("start.point2.world")) {
             BlockCoord p2 = new BlockCoord(
                 config.getString("start.point2.world"),
                 config.getInt("start.point2.x"),
                 config.getInt("start.point2.y"),
                 config.getInt("start.point2.z")
             );
-            course.setStartPoint2(p2);
+            // Calculate min/max from corners, Y bounds: minY = clicked Y, maxY = clicked Y + 1
+            int minX = Math.min(p1.getX(), p2.getX());
+            int maxX = Math.max(p1.getX(), p2.getX());
+            int minY = Math.min(p1.getY(), p2.getY());
+            int maxY = minY + 1; // Fixed height of 2 blocks
+            int minZ = Math.min(p1.getZ(), p2.getZ());
+            int maxZ = Math.max(p1.getZ(), p2.getZ());
+            
+            BlockCoord min = new BlockCoord(p1.getWorld(), minX, minY, minZ);
+            BlockCoord max = new BlockCoord(p1.getWorld(), maxX, maxY, maxZ);
+            course.setStartRegion(new DraftCourse.VolumeRegion(p1.getWorld(), min, max));
+        } else if (config.contains("start.world") && config.contains("start.min.x") && config.contains("start.max.x")) {
+            // New format
+            String world = config.getString("start.world");
+            BlockCoord min = new BlockCoord(
+                world,
+                config.getInt("start.min.x"),
+                config.getInt("start.min.y"),
+                config.getInt("start.min.z")
+            );
+            BlockCoord max = new BlockCoord(
+                world,
+                config.getInt("start.max.x"),
+                config.getInt("start.max.y"),
+                config.getInt("start.max.z")
+            );
+            course.setStartRegion(new DraftCourse.VolumeRegion(world, min, max));
         }
         
-        // Finish region
-        if (config.contains("finish.point1.world")) {
+        // Finish region (new format: min/max volume, with migration from old format)
+        if (config.contains("finish.point1.world") && config.contains("finish.point2.world")) {
+            // Old format - migrate to new format
             BlockCoord p1 = new BlockCoord(
                 config.getString("finish.point1.world"),
                 config.getInt("finish.point1.x"),
                 config.getInt("finish.point1.y"),
                 config.getInt("finish.point1.z")
             );
-            course.setFinishPoint1(p1);
-        }
-        if (config.contains("finish.point2.world")) {
             BlockCoord p2 = new BlockCoord(
                 config.getString("finish.point2.world"),
                 config.getInt("finish.point2.x"),
                 config.getInt("finish.point2.y"),
                 config.getInt("finish.point2.z")
             );
-            course.setFinishPoint2(p2);
+            // Calculate min/max from corners, Y bounds: minY = clicked Y, maxY = clicked Y + 1
+            int minX = Math.min(p1.getX(), p2.getX());
+            int maxX = Math.max(p1.getX(), p2.getX());
+            int minY = Math.min(p1.getY(), p2.getY());
+            int maxY = minY + 1; // Fixed height of 2 blocks
+            int minZ = Math.min(p1.getZ(), p2.getZ());
+            int maxZ = Math.max(p1.getZ(), p2.getZ());
+            
+            BlockCoord min = new BlockCoord(p1.getWorld(), minX, minY, minZ);
+            BlockCoord max = new BlockCoord(p1.getWorld(), maxX, maxY, maxZ);
+            course.setFinishRegion(new DraftCourse.VolumeRegion(p1.getWorld(), min, max));
+        } else if (config.contains("finish.world") && config.contains("finish.min.x") && config.contains("finish.max.x")) {
+            // New format
+            String world = config.getString("finish.world");
+            BlockCoord min = new BlockCoord(
+                world,
+                config.getInt("finish.min.x"),
+                config.getInt("finish.min.y"),
+                config.getInt("finish.min.z")
+            );
+            BlockCoord max = new BlockCoord(
+                world,
+                config.getInt("finish.max.x"),
+                config.getInt("finish.max.y"),
+                config.getInt("finish.max.z")
+            );
+            course.setFinishRegion(new DraftCourse.VolumeRegion(world, min, max));
         }
         
         // Checkpoints

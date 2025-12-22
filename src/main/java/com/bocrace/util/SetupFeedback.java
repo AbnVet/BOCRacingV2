@@ -45,7 +45,70 @@ public class SetupFeedback {
     }
     
     /**
-     * Send feedback for region point 1 capture
+     * Send feedback for volume region corner A capture (start/finish)
+     */
+    public static void sendVolumeCornerAFeedback(Player player, String courseName, String regionName, Location blockLoc) {
+        // Sound
+        player.playSound(blockLoc, Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1.0f, 1.1f);
+        
+        // ActionBar message
+        String coords = String.format("%d, %d, %d", blockLoc.getBlockX(), blockLoc.getBlockY(), blockLoc.getBlockZ());
+        Component message = Component.text()
+            .append(Component.text("✓ ", NamedTextColor.GREEN))
+            .append(Component.text(courseName, NamedTextColor.YELLOW))
+            .append(Component.text(" - ", NamedTextColor.GRAY))
+            .append(Component.text(regionName, NamedTextColor.AQUA))
+            .append(Component.text(" corner A saved: ", NamedTextColor.GRAY))
+            .append(Component.text(coords, NamedTextColor.WHITE))
+            .append(Component.text(" (Click corner B)", NamedTextColor.GRAY))
+            .build();
+        player.sendActionBar(message);
+        
+        // Particles
+        Location particleLoc = blockLoc.clone().add(0.5, 0.5, 0.5);
+        player.getWorld().spawnParticle(
+            Particle.HAPPY_VILLAGER,
+            particleLoc,
+            6, 0.2, 0.2, 0.2, 0.01
+        );
+    }
+    
+    /**
+     * Send feedback for volume region completion (start/finish)
+     */
+    public static void sendVolumeCompleteFeedback(Player player, String courseName, String regionName, 
+                                                  int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
+        // Sound (slightly higher pitch for completion)
+        Location soundLoc = new Location(player.getWorld(), (minX + maxX) / 2.0, (minY + maxY) / 2.0, (minZ + maxZ) / 2.0);
+        player.playSound(soundLoc, Sound.ENTITY_PLAYER_LEVELUP, 0.7f, 1.3f);
+        
+        // ActionBar message
+        String minCoords = String.format("%d,%d,%d", minX, minY, minZ);
+        String maxCoords = String.format("%d,%d,%d", maxX, maxY, maxZ);
+        Component message = Component.text()
+            .append(Component.text("✓✓ ", NamedTextColor.GREEN))
+            .append(Component.text(courseName, NamedTextColor.YELLOW))
+            .append(Component.text(" - ", NamedTextColor.GRAY))
+            .append(Component.text(regionName, NamedTextColor.AQUA))
+            .append(Component.text(" volume saved: ", NamedTextColor.GRAY))
+            .append(Component.text("(" + minCoords + ")", NamedTextColor.WHITE))
+            .append(Component.text(" to ", NamedTextColor.GRAY))
+            .append(Component.text("(" + maxCoords + ")", NamedTextColor.WHITE))
+            .append(Component.text(" height=2", NamedTextColor.GREEN))
+            .build();
+        player.sendActionBar(message);
+        
+        // Particles (more for completion)
+        Location particleLoc = soundLoc.clone();
+        player.getWorld().spawnParticle(
+            Particle.FIREWORK,
+            particleLoc,
+            12, 0.3, 0.3, 0.3, 0.02
+        );
+    }
+    
+    /**
+     * Send feedback for region point 1 capture (for checkpoints - unchanged)
      */
     public static void sendRegionPoint1Feedback(Player player, String courseName, String regionName, Location blockLoc) {
         // Sound
@@ -74,7 +137,7 @@ public class SetupFeedback {
     }
     
     /**
-     * Send feedback for region point 2 capture (region complete)
+     * Send feedback for region point 2 capture (region complete) - for checkpoints
      */
     public static void sendRegionCompleteFeedback(Player player, String courseName, String regionName, Location blockLoc) {
         // Sound (slightly higher pitch for completion)

@@ -159,50 +159,80 @@ public class SetupListener implements Listener {
     }
     
     private boolean handleStartRegion(Player player, SetupSession session, DraftCourse draft, Location blockLoc, String worldName) {
-        BlockCoord point = new BlockCoord(worldName, blockLoc.getBlockX(), blockLoc.getBlockY(), blockLoc.getBlockZ());
+        BlockCoord corner = new BlockCoord(worldName, blockLoc.getBlockX(), blockLoc.getBlockY(), blockLoc.getBlockZ());
         
         if (session.getPendingPoint1() == null) {
-            // First click - set point1
-            session.setPendingPoint1(point);
-            draft.setStartPoint1(point);
+            // First click - corner A
+            session.setPendingPoint1(corner);
             
             // Send feedback
-            SetupFeedback.sendRegionPoint1Feedback(player, draft.getName(), "Start Line", blockLoc);
+            SetupFeedback.sendVolumeCornerAFeedback(player, draft.getName(), "Start", blockLoc);
             
             return true;
         } else {
-            // Second click - set point2 and complete
-            draft.setStartPoint2(point);
+            // Second click - corner B, calculate volume bounds
+            BlockCoord cornerA = session.getPendingPoint1();
+            BlockCoord cornerB = corner;
+            
+            // Calculate min/max from corners
+            int minX = Math.min(cornerA.getX(), cornerB.getX());
+            int maxX = Math.max(cornerA.getX(), cornerB.getX());
+            int minY = Math.min(cornerA.getY(), cornerB.getY());
+            int maxY = minY + 1; // Fixed height of 2 blocks
+            int minZ = Math.min(cornerA.getZ(), cornerB.getZ());
+            int maxZ = Math.max(cornerA.getZ(), cornerB.getZ());
+            
+            BlockCoord min = new BlockCoord(worldName, minX, minY, minZ);
+            BlockCoord max = new BlockCoord(worldName, maxX, maxY, maxZ);
+            DraftCourse.VolumeRegion volume = new DraftCourse.VolumeRegion(worldName, min, max);
+            draft.setStartRegion(volume);
+            
             session.clearPendingPoint1();
             sessionManager.clearSession(player);
             
             // Send feedback
-            SetupFeedback.sendRegionCompleteFeedback(player, draft.getName(), "Start Line", blockLoc);
+            SetupFeedback.sendVolumeCompleteFeedback(player, draft.getName(), "Start", 
+                minX, minY, minZ, maxX, maxY, maxZ);
             
             return true;
         }
     }
     
     private boolean handleFinishRegion(Player player, SetupSession session, DraftCourse draft, Location blockLoc, String worldName) {
-        BlockCoord point = new BlockCoord(worldName, blockLoc.getBlockX(), blockLoc.getBlockY(), blockLoc.getBlockZ());
+        BlockCoord corner = new BlockCoord(worldName, blockLoc.getBlockX(), blockLoc.getBlockY(), blockLoc.getBlockZ());
         
         if (session.getPendingPoint1() == null) {
-            // First click - set point1
-            session.setPendingPoint1(point);
-            draft.setFinishPoint1(point);
+            // First click - corner A
+            session.setPendingPoint1(corner);
             
             // Send feedback
-            SetupFeedback.sendRegionPoint1Feedback(player, draft.getName(), "Finish Line", blockLoc);
+            SetupFeedback.sendVolumeCornerAFeedback(player, draft.getName(), "Finish", blockLoc);
             
             return true;
         } else {
-            // Second click - set point2 and complete
-            draft.setFinishPoint2(point);
+            // Second click - corner B, calculate volume bounds
+            BlockCoord cornerA = session.getPendingPoint1();
+            BlockCoord cornerB = corner;
+            
+            // Calculate min/max from corners
+            int minX = Math.min(cornerA.getX(), cornerB.getX());
+            int maxX = Math.max(cornerA.getX(), cornerB.getX());
+            int minY = Math.min(cornerA.getY(), cornerB.getY());
+            int maxY = minY + 1; // Fixed height of 2 blocks
+            int minZ = Math.min(cornerA.getZ(), cornerB.getZ());
+            int maxZ = Math.max(cornerA.getZ(), cornerB.getZ());
+            
+            BlockCoord min = new BlockCoord(worldName, minX, minY, minZ);
+            BlockCoord max = new BlockCoord(worldName, maxX, maxY, maxZ);
+            DraftCourse.VolumeRegion volume = new DraftCourse.VolumeRegion(worldName, min, max);
+            draft.setFinishRegion(volume);
+            
             session.clearPendingPoint1();
             sessionManager.clearSession(player);
             
             // Send feedback
-            SetupFeedback.sendRegionCompleteFeedback(player, draft.getName(), "Finish Line", blockLoc);
+            SetupFeedback.sendVolumeCompleteFeedback(player, draft.getName(), "Finish", 
+                minX, minY, minZ, maxX, maxY, maxZ);
             
             return true;
         }
