@@ -1,0 +1,12 @@
+name: BOCRacingV2
+version: '${project.version}'
+main: com.bocrace.BOCRacingV2
+api-version: '1.21'
+author: AbnVet
+description: Clean rewrite of BOCRacePlugin
+
+commands:
+  bocrace:
+    description: Main command for BOCRacingV2
+    usage: /<command>
+    aliases: [race]
