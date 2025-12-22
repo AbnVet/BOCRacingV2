@@ -1,16 +1,16 @@
 package com.bocrace;
 
-import com.bocrace.command.AdminCommand;
 import com.bocrace.command.BOCRaceCommand;
+import com.bocrace.command.CourseCommandHandler;
 import com.bocrace.listener.SetupListener;
 import com.bocrace.setup.SetupSessionManager;
-import com.bocrace.storage.DraftManager;
+import com.bocrace.storage.CourseManager;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public class BOCRacingV2 extends JavaPlugin {
 
     private SetupSessionManager setupSessionManager;
-    private DraftManager draftManager;
+    private CourseManager courseManager;
 
     @Override
     public void onEnable() {
@@ -18,19 +18,19 @@ public class BOCRacingV2 extends JavaPlugin {
         
         // Initialize managers
         this.setupSessionManager = new SetupSessionManager();
-        this.draftManager = new DraftManager(this);
+        this.courseManager = new CourseManager(this);
         
-        // Create admin command
-        AdminCommand adminCommand = new AdminCommand(this, setupSessionManager, draftManager);
+        // Create command handler
+        CourseCommandHandler commandHandler = new CourseCommandHandler(this, setupSessionManager, courseManager);
         
-        // Register main command (routes to admin command for admin subcommands)
-        BOCRaceCommand mainCommand = new BOCRaceCommand(this, adminCommand);
+        // Register main command
+        BOCRaceCommand mainCommand = new BOCRaceCommand(this, commandHandler);
         getCommand("bocrace").setExecutor(mainCommand);
         getCommand("bocrace").setTabCompleter(mainCommand);
         
         // Register listener
         getServer().getPluginManager().registerEvents(
-            new SetupListener(this, setupSessionManager, draftManager), 
+            new SetupListener(this, setupSessionManager, courseManager), 
             this
         );
     }
@@ -49,7 +49,7 @@ public class BOCRacingV2 extends JavaPlugin {
         return setupSessionManager;
     }
     
-    public DraftManager getDraftManager() {
-        return draftManager;
+    public CourseManager getCourseManager() {
+        return courseManager;
     }
 }

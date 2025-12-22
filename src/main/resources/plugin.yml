@@ -10,3 +10,11 @@ commands:
     description: Main command for BOCRacingV2
     usage: /<command>
     aliases: [race]
+
+permissions:
+  bocrace.admin:
+    description: Full access to all admin commands
+    default: op
+  bocrace.builder:
+    description: Access to course creation and setup commands
+    default: op

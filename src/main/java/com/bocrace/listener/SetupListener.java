@@ -6,7 +6,7 @@ import com.bocrace.model.DraftCourse.BlockCoord;
 import com.bocrace.model.DraftCourse.CheckpointRegion;
 import com.bocrace.setup.SetupSession;
 import com.bocrace.setup.SetupSessionManager;
-import com.bocrace.storage.DraftManager;
+import com.bocrace.storage.CourseManager;
 import org.bukkit.Location;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
@@ -24,12 +24,12 @@ public class SetupListener implements Listener {
     
     private final BOCRacingV2 plugin;
     private final SetupSessionManager sessionManager;
-    private final DraftManager draftManager;
+    private final CourseManager courseManager;
     
-    public SetupListener(BOCRacingV2 plugin, SetupSessionManager sessionManager, DraftManager draftManager) {
+    public SetupListener(BOCRacingV2 plugin, SetupSessionManager sessionManager, CourseManager courseManager) {
         this.plugin = plugin;
         this.sessionManager = sessionManager;
-        this.draftManager = draftManager;
+        this.courseManager = courseManager;
     }
     
     @EventHandler(priority = EventPriority.HIGH)
@@ -65,17 +65,10 @@ public class SetupListener implements Listener {
         Location blockLoc = clickedBlock.getLocation();
         String worldName = blockLoc.getWorld().getName();
         
-        // Load draft
-        DraftCourse draft;
-        try {
-            draft = draftManager.loadDraft(session.getCourseName());
-            if (draft == null) {
-                player.sendMessage("§cDraft course not found!");
-                sessionManager.clearSession(player);
-                return;
-            }
-        } catch (IOException e) {
-            player.sendMessage("§cFailed to load draft: " + e.getMessage());
+        // Load course
+        DraftCourse course = courseManager.findCourse(session.getCourseName());
+        if (course == null) {
+            player.sendMessage("§cCourse not found!");
             sessionManager.clearSession(player);
             return;
         }
@@ -86,36 +79,36 @@ public class SetupListener implements Listener {
         
         switch (session.getArmedAction()) {
             case PLAYER_SPAWN:
-                success = handlePlayerSpawn(player, draft, blockLoc);
+                success = handlePlayerSpawn(player, course, blockLoc);
                 shouldClearSession = true;
                 break;
                 
             case COURSE_LOBBY:
-                success = handleCourseLobby(player, draft, blockLoc);
+                success = handleCourseLobby(player, course, blockLoc);
                 shouldClearSession = true;
                 break;
                 
             case START:
-                success = handleStartRegion(player, session, draft, blockLoc, worldName);
+                success = handleStartRegion(player, session, course, blockLoc, worldName);
                 break;
                 
             case FINISH:
-                success = handleFinishRegion(player, session, draft, blockLoc, worldName);
+                success = handleFinishRegion(player, session, course, blockLoc, worldName);
                 break;
                 
             case CHECKPOINT:
-                success = handleCheckpointRegion(player, session, draft, blockLoc, worldName);
+                success = handleCheckpointRegion(player, session, course, blockLoc, worldName);
                 break;
         }
         
         if (success) {
-            // Save draft
+            // Save course
             try {
-                draftManager.saveDraft(draft);
+                courseManager.saveCourse(course);
                 player.sendMessage("§aLocation saved!");
             } catch (IOException e) {
-                player.sendMessage("§cFailed to save draft: " + e.getMessage());
-                plugin.getLogger().severe("Failed to save draft: " + e.getMessage());
+                player.sendMessage("§cFailed to save course: " + e.getMessage());
+                plugin.getLogger().severe("Failed to save course: " + e.getMessage());
             }
             
             // Clear session if single-click action
