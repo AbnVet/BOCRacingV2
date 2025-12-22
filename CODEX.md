@@ -6,7 +6,8 @@
 
 - **READ-ONLY**: Never edit v1 code. Never copy/paste code from v1.
 - **Reference Only**: Use v1 to understand behavior and requirements, not to migrate code.
-- **Fresh Implementation**: All v2 code must be written from scratch with clean architecture.
+- **Fresh Implementation**: v2 code is written cleanly, but may intentionally mirror patterns
+  from v1 when behaviorally justified. Code must be reimplemented, not copied.
 
 ## Development Workflow
 
@@ -37,3 +38,10 @@ Before committing:
 - [ ] Files changed are documented
 - [ ] No v1 code copied/pasted
 - [ ] Small, focused diff
+
+## Iterative Design Note
+
+- Architecture and workflows may evolve during development.
+- If a rule or design choice conflicts with real-world usability or clarity,
+  it may be revisited intentionally.
+- Cursor may suggest alternatives, but implementation requires explicit approval.

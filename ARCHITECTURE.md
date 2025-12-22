@@ -11,7 +11,10 @@
 - Single unified `Course` class for both boat and air races
 - Race type determined by course configuration (not separate classes)
 
-## Admin Course Builder Workflow
+## Admin Course Builder Workflow (Evolving)
+
+This workflow represents the current design intent and may be refined
+as usability issues are discovered during implementation.
 
 ### Setup Phase
 1. Create course record in `courses` table
@@ -59,9 +62,10 @@
 #### `runs`
 - `id` (PRIMARY KEY)
 - `course_id` (FOREIGN KEY → courses.id)
-- `mode` (SOLO/MULTIPLAYER, derived from spawn count)
 - `started_at`, `finished_at`
 - `status` (IN_PROGRESS/COMPLETED/DISQUALIFIED)
+- **Note**: Mode is derived dynamically from spawn count or participant count.
+  No mode field is stored.
 
 #### `run_players`
 - `id` (PRIMARY KEY)
