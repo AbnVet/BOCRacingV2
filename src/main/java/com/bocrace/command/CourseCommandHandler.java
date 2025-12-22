@@ -257,31 +257,49 @@ public class CourseCommandHandler implements CommandExecutor, TabCompleter {
             return true;
         }
         
-        // Show status
-        sender.sendMessage("§6=== Course Setup Status: " + course.getName() + " ===");
-        sender.sendMessage("§7Type: §f" + course.getType());
-        sender.sendMessage("§7Status: §f" + course.getStatus());
+        // Get file path
+        String safeFileName = CourseManager.toSafeFileName(courseName);
+        String folderName = course.getType() == CourseType.BOAT ? "boatracing" : "airracing";
+        String filePath = "plugins/BOCRacingV2/" + folderName + "/" + safeFileName + ".yml";
         
-        // Show progress
-        sender.sendMessage("§6Setup Progress:");
-        sender.sendMessage("§7Course Lobby: " + (course.getCourseLobbySpawn() != null ? "§aSET" : "§cNOT SET"));
-        sender.sendMessage("§7Player Spawns: §f" + course.getPlayerSpawns().size());
-        sender.sendMessage("§7Start Line: " + (course.getStartPoint1() != null && course.getStartPoint2() != null ? "§aSET" : "§cNOT SET"));
-        sender.sendMessage("§7Finish Line: " + (course.getFinishPoint1() != null && course.getFinishPoint2() != null ? "§aSET" : "§cNOT SET"));
-        sender.sendMessage("§7Checkpoints: §f" + course.getCheckpoints().size());
-        
-        // Suggest next step
-        sender.sendMessage("§6Next Steps:");
-        if (course.getCourseLobbySpawn() == null) {
-            sender.sendMessage("§7→ /bocrace setup " + courseName + " course_lobby");
-        } else if (course.getPlayerSpawns().isEmpty()) {
-            sender.sendMessage("§7→ /bocrace setup " + courseName + " player_spawn");
-        } else if (course.getStartPoint1() == null || course.getStartPoint2() == null) {
-            sender.sendMessage("§7→ /bocrace setup " + courseName + " start");
-        } else if (course.getFinishPoint1() == null || course.getFinishPoint2() == null) {
-            sender.sendMessage("§7→ /bocrace setup " + courseName + " finish");
+        // Derive mode from spawn count
+        int spawnCount = course.getPlayerSpawns().size();
+        String mode;
+        if (spawnCount == 0) {
+            mode = "§cUNSET";
+        } else if (spawnCount == 1) {
+            mode = "§eSOLO";
         } else {
-            sender.sendMessage("§7→ Course setup complete! Add checkpoints or validate.");
+            mode = "§bMULTI";
+        }
+        
+        // Show status
+        sender.sendMessage("§6═══ Course Status: " + course.getName() + " ═══");
+        sender.sendMessage("§7Type: §f" + course.getType() + " §7│ Status: §f" + course.getStatus());
+        sender.sendMessage("§7File: §f" + filePath);
+        sender.sendMessage("");
+        
+        // Checklist
+        sender.sendMessage("§6Checklist:");
+        sender.sendMessage("  " + (course.getCourseLobbySpawn() != null ? "§a✓" : "§c✗") + " §7Course Lobby: " + (course.getCourseLobbySpawn() != null ? "§aSET" : "§cMISSING"));
+        sender.sendMessage("  " + (spawnCount > 0 ? "§a✓" : "§c✗") + " §7Player Spawns: §f" + spawnCount + " §7(" + mode + "§7)");
+        sender.sendMessage("  " + (course.getStartPoint1() != null && course.getStartPoint2() != null ? "§a✓" : "§c✗") + " §7Start Line: " + (course.getStartPoint1() != null && course.getStartPoint2() != null ? "§aSET" : "§cMISSING"));
+        sender.sendMessage("  " + (course.getFinishPoint1() != null && course.getFinishPoint2() != null ? "§a✓" : "§c✗") + " §7Finish Line: " + (course.getFinishPoint1() != null && course.getFinishPoint2() != null ? "§aSET" : "§cMISSING"));
+        sender.sendMessage("  " + (course.getCheckpoints().size() > 0 ? "§a✓" : "§7○") + " §7Checkpoints: §f" + course.getCheckpoints().size());
+        
+        // Next step (single command)
+        sender.sendMessage("");
+        sender.sendMessage("§6Next Step:");
+        if (course.getCourseLobbySpawn() == null) {
+            sender.sendMessage("  §7→ §a/bocrace setup " + courseName + " course_lobby");
+        } else if (spawnCount == 0) {
+            sender.sendMessage("  §7→ §a/bocrace setup " + courseName + " player_spawn");
+        } else if (course.getStartPoint1() == null || course.getStartPoint2() == null) {
+            sender.sendMessage("  §7→ §a/bocrace setup " + courseName + " start");
+        } else if (course.getFinishPoint1() == null || course.getFinishPoint2() == null) {
+            sender.sendMessage("  §7→ §a/bocrace setup " + courseName + " finish");
+        } else {
+            sender.sendMessage("  §7→ §aStructurally complete. Add checkpoints if desired.");
         }
         
         return true;
