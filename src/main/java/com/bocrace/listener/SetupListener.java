@@ -7,6 +7,7 @@ import com.bocrace.model.DraftCourse.CheckpointRegion;
 import com.bocrace.setup.SetupSession;
 import com.bocrace.setup.SetupSessionManager;
 import com.bocrace.storage.CourseManager;
+import com.bocrace.util.SetupFeedback;
 import org.bukkit.Location;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
@@ -105,10 +106,10 @@ public class SetupListener implements Listener {
             // Save course
             try {
                 courseManager.saveCourse(course);
-                player.sendMessage("§aLocation saved!");
             } catch (IOException e) {
                 player.sendMessage("§cFailed to save course: " + e.getMessage());
                 plugin.getLogger().severe("Failed to save course: " + e.getMessage());
+                return;
             }
             
             // Clear session if single-click action
@@ -131,7 +132,10 @@ public class SetupListener implements Listener {
         
         draft.addPlayerSpawn(spawnLoc);
         int spawnNumber = draft.getPlayerSpawns().size();
-        player.sendMessage("§aPlayer spawn #" + spawnNumber + " set!");
+        
+        // Send feedback
+        SetupFeedback.sendSingleClickFeedback(player, draft.getName(), "Player Spawn #" + spawnNumber, spawnLoc);
+        
         return true;
     }
     
@@ -147,7 +151,10 @@ public class SetupListener implements Listener {
         );
         
         draft.setCourseLobbySpawn(lobbyLoc);
-        player.sendMessage("§aCourse lobby spawn set!");
+        
+        // Send feedback
+        SetupFeedback.sendSingleClickFeedback(player, draft.getName(), "Course Lobby", lobbyLoc);
+        
         return true;
     }
     
@@ -158,15 +165,20 @@ public class SetupListener implements Listener {
             // First click - set point1
             session.setPendingPoint1(point);
             draft.setStartPoint1(point);
-            player.sendMessage("§aStart line point 1 set!");
-            player.sendMessage("§7Right-click block 2 of 2 to complete start line");
+            
+            // Send feedback
+            SetupFeedback.sendRegionPoint1Feedback(player, draft.getName(), "Start Line", blockLoc);
+            
             return true;
         } else {
             // Second click - set point2 and complete
             draft.setStartPoint2(point);
             session.clearPendingPoint1();
             sessionManager.clearSession(player);
-            player.sendMessage("§aStart line point 2 set! Start region complete.");
+            
+            // Send feedback
+            SetupFeedback.sendRegionCompleteFeedback(player, draft.getName(), "Start Line", blockLoc);
+            
             return true;
         }
     }
@@ -178,15 +190,20 @@ public class SetupListener implements Listener {
             // First click - set point1
             session.setPendingPoint1(point);
             draft.setFinishPoint1(point);
-            player.sendMessage("§aFinish line point 1 set!");
-            player.sendMessage("§7Right-click block 2 of 2 to complete finish line");
+            
+            // Send feedback
+            SetupFeedback.sendRegionPoint1Feedback(player, draft.getName(), "Finish Line", blockLoc);
+            
             return true;
         } else {
             // Second click - set point2 and complete
             draft.setFinishPoint2(point);
             session.clearPendingPoint1();
             sessionManager.clearSession(player);
-            player.sendMessage("§aFinish line point 2 set! Finish region complete.");
+            
+            // Send feedback
+            SetupFeedback.sendRegionCompleteFeedback(player, draft.getName(), "Finish Line", blockLoc);
+            
             return true;
         }
     }
@@ -198,8 +215,10 @@ public class SetupListener implements Listener {
             // First click - set point1
             session.setPendingPoint1(point);
             int checkpointIndex = draft.getCheckpoints().size() + 1;
-            player.sendMessage("§aCheckpoint #" + checkpointIndex + " point 1 set!");
-            player.sendMessage("§7Right-click block 2 of 2 to complete checkpoint");
+            
+            // Send feedback
+            SetupFeedback.sendCheckpointPoint1Feedback(player, draft.getName(), checkpointIndex, blockLoc);
+            
             return true;
         } else {
             // Second click - set point2 and complete checkpoint
@@ -208,7 +227,10 @@ public class SetupListener implements Listener {
             draft.addCheckpoint(checkpoint);
             session.clearPendingPoint1();
             sessionManager.clearSession(player);
-            player.sendMessage("§aCheckpoint #" + checkpointIndex + " point 2 set! Checkpoint complete.");
+            
+            // Send feedback
+            SetupFeedback.sendCheckpointCompleteFeedback(player, draft.getName(), checkpointIndex, blockLoc);
+            
             return true;
         }
     }
