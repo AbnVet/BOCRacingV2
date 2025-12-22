@@ -5,7 +5,9 @@
 ### Course Mode Derivation
 - **SOLO**: Course has exactly 1 spawn point
 - **MULTIPLAYER**: Course has 2+ spawn points
-- Mode is derived at runtime from `course_spawns` count, not stored as a field.
+- Mode is derived from course spawn count at course load time
+  (1 spawn = SOLO, 2+ spawns = MULTIPLAYER).
+- Mode is NOT derived from participant count during a run.
 
 ### Course Entity
 - Single unified `Course` class for both boat and air races
@@ -15,6 +17,10 @@
 
 This workflow represents the current design intent and may be refined
 as usability issues are discovered during implementation.
+
+### Entry Point
+- Admins begin course setup using a `/bocrace admin` command.
+- Initial actions include creating a new course or listing existing courses.
 
 ### Setup Phase
 1. Create course record in `courses` table
@@ -42,6 +48,11 @@ as usability issues are discovered during implementation.
 
 ## Database Schema
 
+### Schema Versioning
+- All database schemas must include a `schema_version` table.
+- Schema changes require migration scripts.
+- Existing columns must never be modified or dropped without a migration.
+
 ### Core Tables
 
 #### `courses`
@@ -59,12 +70,19 @@ as usability issues are discovered during implementation.
 - `x`, `y`, `z` (location)
 - `yaw`, `pitch` (rotation)
 
+#### `course_checkpoints`
+- `id` (PRIMARY KEY)
+- `course_id` (FOREIGN KEY → courses.id)
+- `checkpoint_index` (INT)
+- `x`, `y`, `z` (location)
+- `radius` (or equivalent size value)
+
 #### `runs`
 - `id` (PRIMARY KEY)
 - `course_id` (FOREIGN KEY → courses.id)
 - `started_at`, `finished_at`
 - `status` (IN_PROGRESS/COMPLETED/DISQUALIFIED)
-- **Note**: Mode is derived dynamically from spawn count or participant count.
+- **Note**: Mode is derived dynamically from course spawn count at course load time.
   No mode field is stored.
 
 #### `run_players`

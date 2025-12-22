@@ -8,6 +8,11 @@
 - **Reference Only**: Use v1 to understand behavior and requirements, not to migrate code.
 - **Fresh Implementation**: v2 code is written cleanly, but may intentionally mirror patterns
   from v1 when behaviorally justified. Code must be reimplemented, not copied.
+- Mirroring v1 patterns is allowed ONLY when:
+  (a) the behavior matches a documented v1 requirement,
+  (b) the code is rewritten from scratch,
+  (c) at least one improvement over the v1 approach is identified.
+- Copy-paste from v1 is never allowed.
 
 ## Development Workflow
 
