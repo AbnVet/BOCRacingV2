@@ -2,7 +2,6 @@ package com.bocrace.listener;
 
 import com.bocrace.BOCRacingV2;
 import com.bocrace.model.Course;
-import com.bocrace.model.CourseType;
 import com.bocrace.runtime.RaceManager;
 import com.bocrace.storage.CourseManager;
 import org.bukkit.Bukkit;
@@ -135,10 +134,23 @@ public class CourseButtonListener implements Listener {
                button.getZ() == z;
     }
     
+    private boolean isAdmin(Player player) {
+        return player.isOp() || player.hasPermission("bocrace.admin");
+    }
+    
+    private void sendNotReadyMessage(Player player, Course course) {
+        String msg = "§cCourse not ready yet.";
+        if (isAdmin(player)) {
+            msg += " Run /bocrace status " + course.getName();
+        }
+        player.sendMessage(msg);
+    }
+    
     private void handleSoloJoin(Player player, Course course) {
+        // Readiness check: exactly 1 spawn AND soloJoinButton exists
         int spawnCount = course.getPlayerSpawns().size();
-        if (spawnCount != 1) {
-            player.sendMessage("§cSolo course misconfigured: needs exactly 1 spawn.");
+        if (spawnCount != 1 || course.getSoloJoinButton() == null) {
+            sendNotReadyMessage(player, course);
             return;
         }
         
@@ -162,8 +174,9 @@ public class CourseButtonListener implements Listener {
     }
     
     private void handleSoloReturn(Player player, Course course) {
-        if (course.getCourseLobbySpawn() == null) {
-            player.sendMessage("§cCourse lobby not set.");
+        // Readiness check: soloReturnButton exists AND courseLobby exists
+        if (course.getSoloReturnButton() == null || course.getCourseLobbySpawn() == null) {
+            sendNotReadyMessage(player, course);
             return;
         }
         
@@ -179,9 +192,10 @@ public class CourseButtonListener implements Listener {
     }
     
     private void handleMpJoin(Player player, Course course) {
+        // Readiness check: mpLobby exists AND mpJoinButton exists AND playerSpawns >= 2
         int spawnCount = course.getPlayerSpawns().size();
-        if (spawnCount < 2) {
-            player.sendMessage("§cMultiplayer misconfigured: need 2+ player spawns.");
+        if (course.getMpLobby() == null || course.getMpJoinButton() == null || spawnCount < 2) {
+            sendNotReadyMessage(player, course);
             return;
         }
         
@@ -198,6 +212,11 @@ public class CourseButtonListener implements Listener {
         if (lobby.getJoinedPlayers().containsKey(player.getUniqueId())) {
             player.sendMessage("§cYou're already in the lobby.");
             return;
+        }
+        
+        // If no leader exists yet, first joining player becomes leader
+        if (lobby.getLeaderUuid() == null) {
+            lobby.setLeaderUuid(player.getUniqueId());
         }
         
         // Find available spawn index
@@ -248,9 +267,10 @@ public class CourseButtonListener implements Listener {
     }
     
     private void handleMpLeaderStart(Player player, Course course) {
+        // Readiness check: mpLeaderStartButton exists AND playerSpawns >= 2
         int spawnCount = course.getPlayerSpawns().size();
-        if (spawnCount < 2) {
-            player.sendMessage("§cMultiplayer misconfigured: need 2+ player spawns.");
+        if (course.getMpLeaderStartButton() == null || spawnCount < 2) {
+            sendNotReadyMessage(player, course);
             return;
         }
         
@@ -263,13 +283,8 @@ public class CourseButtonListener implements Listener {
             return;
         }
         
-        // Set leader if not set
-        if (lobby.getLeaderUuid() == null) {
-            lobby.setLeaderUuid(player.getUniqueId());
-        }
-        
         // Check if leader
-        if (!lobby.getLeaderUuid().equals(player.getUniqueId())) {
+        if (lobby.getLeaderUuid() == null || !lobby.getLeaderUuid().equals(player.getUniqueId())) {
             player.sendMessage("§cOnly the race leader can start the race.");
             return;
         }
@@ -351,6 +366,12 @@ public class CourseButtonListener implements Listener {
     }
     
     private void handleMpLeaderCancel(Player player, Course course) {
+        // Readiness check: mpLeaderCancelButton exists
+        if (course.getMpLeaderCancelButton() == null) {
+            sendNotReadyMessage(player, course);
+            return;
+        }
+        
         RaceManager.CourseKey key = new RaceManager.CourseKey(course.getType().name(), course.getName());
         RaceManager.MultiLobbyState lobby = raceManager.getMultiLobby(key);
         
@@ -359,8 +380,9 @@ public class CourseButtonListener implements Listener {
             return;
         }
         
-        // Check if leader
-        if (lobby.getLeaderUuid() == null || !lobby.getLeaderUuid().equals(player.getUniqueId())) {
+        // Check if leader (OP override allowed)
+        boolean isLeader = lobby.getLeaderUuid() != null && lobby.getLeaderUuid().equals(player.getUniqueId());
+        if (!isLeader && !isAdmin(player)) {
             player.sendMessage("§cOnly the race leader can cancel the race.");
             return;
         }

@@ -171,6 +171,16 @@ public class RaceManager {
     }
     
     /**
+     * Clear solo lock if held by player (used for quit/kick cleanup)
+     */
+    public void clearSoloLockIfHeldBy(UUID playerUuid) {
+        activeSoloLocks.entrySet().removeIf(entry -> {
+            SoloLock lock = entry.getValue();
+            return lock.getPlayerUuid().equals(playerUuid);
+        });
+    }
+    
+    /**
      * Get or create multiplayer lobby
      */
     public MultiLobbyState getOrCreateMultiLobby(CourseKey key) {

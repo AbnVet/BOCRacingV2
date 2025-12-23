@@ -43,6 +43,9 @@ public class PlayerLifecycleListener implements Listener {
         UUID playerUuid = player.getUniqueId();
         String playerName = player.getName();
         
+        // Clear solo locks held by this player
+        raceManager.clearSoloLockIfHeldBy(playerUuid);
+        
         // Find lobby
         RaceManager.LobbyResult result = raceManager.findLobbyByPlayer(playerUuid);
         if (result == null) {
