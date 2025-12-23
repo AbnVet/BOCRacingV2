@@ -159,6 +159,8 @@ public class CourseCommandHandler implements CommandExecutor, TabCompleter {
         if (args.length < 3) {
             sender.sendMessage("§cUsage: /bocrace setup <name> <action>");
             sender.sendMessage("§7Actions: player_spawn, course_lobby, start, finish, checkpoint");
+            sender.sendMessage("§7Solo: solo_join_button, solo_return_button");
+            sender.sendMessage("§7Multi: mp_lobby, mp_join_button, mp_leader_create_button, mp_leader_start_button, mp_leader_cancel_button");
             return true;
         }
         
@@ -191,9 +193,32 @@ public class CourseCommandHandler implements CommandExecutor, TabCompleter {
             case "checkpoint":
                 action = SetupSession.ArmedAction.CHECKPOINT;
                 break;
+            case "solo_join_button":
+                action = SetupSession.ArmedAction.SOLO_JOIN_BUTTON;
+                break;
+            case "solo_return_button":
+                action = SetupSession.ArmedAction.SOLO_RETURN_BUTTON;
+                break;
+            case "mp_lobby":
+                action = SetupSession.ArmedAction.MP_LOBBY;
+                break;
+            case "mp_join_button":
+                action = SetupSession.ArmedAction.MP_JOIN_BUTTON;
+                break;
+            case "mp_leader_create_button":
+                action = SetupSession.ArmedAction.MP_LEADER_CREATE_BUTTON;
+                break;
+            case "mp_leader_start_button":
+                action = SetupSession.ArmedAction.MP_LEADER_START_BUTTON;
+                break;
+            case "mp_leader_cancel_button":
+                action = SetupSession.ArmedAction.MP_LEADER_CANCEL_BUTTON;
+                break;
             default:
                 sender.sendMessage("§cUnknown action: " + actionStr);
                 sender.sendMessage("§7Valid actions: player_spawn, course_lobby, start, finish, checkpoint");
+                sender.sendMessage("§7Solo: solo_join_button, solo_return_button");
+                sender.sendMessage("§7Multi: mp_lobby, mp_join_button, mp_leader_create_button, mp_leader_start_button, mp_leader_cancel_button");
                 return true;
         }
         
@@ -441,7 +466,9 @@ public class CourseCommandHandler implements CommandExecutor, TabCompleter {
         if (args.length == 3) {
             String subCommand = args[0].toLowerCase();
             if (subCommand.equals("setup")) {
-                return Arrays.asList("player_spawn", "course_lobby", "start", "finish", "checkpoint").stream()
+                return Arrays.asList("player_spawn", "course_lobby", "start", "finish", "checkpoint",
+                    "solo_join_button", "solo_return_button", "mp_lobby", "mp_join_button",
+                    "mp_leader_create_button", "mp_leader_start_button", "mp_leader_cancel_button").stream()
                     .filter(action -> action.startsWith(args[2].toLowerCase()))
                     .collect(Collectors.toList());
             }

@@ -58,6 +58,13 @@ public class SetupSession {
         COURSE_LOBBY,
         START,
         FINISH,
-        CHECKPOINT
+        CHECKPOINT,
+        SOLO_JOIN_BUTTON,
+        SOLO_RETURN_BUTTON,
+        MP_LOBBY,
+        MP_JOIN_BUTTON,
+        MP_LEADER_CREATE_BUTTON,
+        MP_LEADER_START_BUTTON,
+        MP_LEADER_CANCEL_BUTTON
     }
 }

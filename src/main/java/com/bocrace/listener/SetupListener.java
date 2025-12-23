@@ -100,6 +100,41 @@ public class SetupListener implements Listener {
             case CHECKPOINT:
                 success = handleCheckpointRegion(player, session, course, blockLoc, worldName);
                 break;
+                
+            case SOLO_JOIN_BUTTON:
+                success = handleSoloJoinButton(player, course, blockLoc, worldName);
+                shouldClearSession = true;
+                break;
+                
+            case SOLO_RETURN_BUTTON:
+                success = handleSoloReturnButton(player, course, blockLoc, worldName);
+                shouldClearSession = true;
+                break;
+                
+            case MP_LOBBY:
+                success = handleMpLobby(player, course, blockLoc);
+                shouldClearSession = true;
+                break;
+                
+            case MP_JOIN_BUTTON:
+                success = handleMpJoinButton(player, course, blockLoc, worldName);
+                shouldClearSession = true;
+                break;
+                
+            case MP_LEADER_CREATE_BUTTON:
+                success = handleMpLeaderCreateButton(player, course, blockLoc, worldName);
+                shouldClearSession = true;
+                break;
+                
+            case MP_LEADER_START_BUTTON:
+                success = handleMpLeaderStartButton(player, course, blockLoc, worldName);
+                shouldClearSession = true;
+                break;
+                
+            case MP_LEADER_CANCEL_BUTTON:
+                success = handleMpLeaderCancelButton(player, course, blockLoc, worldName);
+                shouldClearSession = true;
+                break;
         }
         
         if (success) {
@@ -263,5 +298,62 @@ public class SetupListener implements Listener {
             
             return true;
         }
+    }
+    
+    private boolean handleSoloJoinButton(Player player, Course course, Location blockLoc, String worldName) {
+        BlockCoord button = new BlockCoord(worldName, blockLoc.getBlockX(), blockLoc.getBlockY(), blockLoc.getBlockZ());
+        course.setSoloJoinButton(button);
+        SetupFeedback.sendSingleClickFeedback(player, course.getName(), "Solo Join Button", blockLoc);
+        return true;
+    }
+    
+    private boolean handleSoloReturnButton(Player player, Course course, Location blockLoc, String worldName) {
+        BlockCoord button = new BlockCoord(worldName, blockLoc.getBlockX(), blockLoc.getBlockY(), blockLoc.getBlockZ());
+        course.setSoloReturnButton(button);
+        SetupFeedback.sendSingleClickFeedback(player, course.getName(), "Solo Return Button", blockLoc);
+        return true;
+    }
+    
+    private boolean handleMpLobby(Player player, Course course, Location blockLoc) {
+        // Center of block, above block, with yaw from player view, pitch=0
+        Location lobbyLoc = new Location(
+            blockLoc.getWorld(),
+            blockLoc.getBlockX() + 0.5,
+            blockLoc.getBlockY() + 1.0,
+            blockLoc.getBlockZ() + 0.5,
+            player.getLocation().getYaw(),
+            0.0f // Force pitch = 0
+        );
+        course.setMpLobby(lobbyLoc);
+        SetupFeedback.sendSingleClickFeedback(player, course.getName(), "MP Lobby", lobbyLoc);
+        return true;
+    }
+    
+    private boolean handleMpJoinButton(Player player, Course course, Location blockLoc, String worldName) {
+        BlockCoord button = new BlockCoord(worldName, blockLoc.getBlockX(), blockLoc.getBlockY(), blockLoc.getBlockZ());
+        course.setMpJoinButton(button);
+        SetupFeedback.sendSingleClickFeedback(player, course.getName(), "MP Join Button", blockLoc);
+        return true;
+    }
+    
+    private boolean handleMpLeaderCreateButton(Player player, Course course, Location blockLoc, String worldName) {
+        BlockCoord button = new BlockCoord(worldName, blockLoc.getBlockX(), blockLoc.getBlockY(), blockLoc.getBlockZ());
+        course.setMpLeaderCreateButton(button);
+        SetupFeedback.sendSingleClickFeedback(player, course.getName(), "MP Leader Create Button", blockLoc);
+        return true;
+    }
+    
+    private boolean handleMpLeaderStartButton(Player player, Course course, Location blockLoc, String worldName) {
+        BlockCoord button = new BlockCoord(worldName, blockLoc.getBlockX(), blockLoc.getBlockY(), blockLoc.getBlockZ());
+        course.setMpLeaderStartButton(button);
+        SetupFeedback.sendSingleClickFeedback(player, course.getName(), "MP Leader Start Button", blockLoc);
+        return true;
+    }
+    
+    private boolean handleMpLeaderCancelButton(Player player, Course course, Location blockLoc, String worldName) {
+        BlockCoord button = new BlockCoord(worldName, blockLoc.getBlockX(), blockLoc.getBlockY(), blockLoc.getBlockZ());
+        course.setMpLeaderCancelButton(button);
+        SetupFeedback.sendSingleClickFeedback(player, course.getName(), "MP Leader Cancel Button", blockLoc);
+        return true;
     }
 }

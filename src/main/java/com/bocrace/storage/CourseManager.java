@@ -152,6 +152,61 @@ public class CourseManager {
             }
         }
         
+        // SOLO buttons
+        if (course.getSoloJoinButton() != null) {
+            BlockCoord btn = course.getSoloJoinButton();
+            config.set("soloJoinButton.world", btn.getWorld());
+            config.set("soloJoinButton.x", btn.getX());
+            config.set("soloJoinButton.y", btn.getY());
+            config.set("soloJoinButton.z", btn.getZ());
+        }
+        if (course.getSoloReturnButton() != null) {
+            BlockCoord btn = course.getSoloReturnButton();
+            config.set("soloReturnButton.world", btn.getWorld());
+            config.set("soloReturnButton.x", btn.getX());
+            config.set("soloReturnButton.y", btn.getY());
+            config.set("soloReturnButton.z", btn.getZ());
+        }
+        
+        // MULTI items
+        if (course.getMpLobby() != null) {
+            Location loc = course.getMpLobby();
+            config.set("mpLobby.world", loc.getWorld().getName());
+            config.set("mpLobby.x", loc.getX());
+            config.set("mpLobby.y", loc.getY());
+            config.set("mpLobby.z", loc.getZ());
+            config.set("mpLobby.yaw", loc.getYaw());
+            config.set("mpLobby.pitch", loc.getPitch());
+        }
+        if (course.getMpJoinButton() != null) {
+            BlockCoord btn = course.getMpJoinButton();
+            config.set("mpJoinButton.world", btn.getWorld());
+            config.set("mpJoinButton.x", btn.getX());
+            config.set("mpJoinButton.y", btn.getY());
+            config.set("mpJoinButton.z", btn.getZ());
+        }
+        if (course.getMpLeaderCreateButton() != null) {
+            BlockCoord btn = course.getMpLeaderCreateButton();
+            config.set("mpLeaderCreateButton.world", btn.getWorld());
+            config.set("mpLeaderCreateButton.x", btn.getX());
+            config.set("mpLeaderCreateButton.y", btn.getY());
+            config.set("mpLeaderCreateButton.z", btn.getZ());
+        }
+        if (course.getMpLeaderStartButton() != null) {
+            BlockCoord btn = course.getMpLeaderStartButton();
+            config.set("mpLeaderStartButton.world", btn.getWorld());
+            config.set("mpLeaderStartButton.x", btn.getX());
+            config.set("mpLeaderStartButton.y", btn.getY());
+            config.set("mpLeaderStartButton.z", btn.getZ());
+        }
+        if (course.getMpLeaderCancelButton() != null) {
+            BlockCoord btn = course.getMpLeaderCancelButton();
+            config.set("mpLeaderCancelButton.world", btn.getWorld());
+            config.set("mpLeaderCancelButton.x", btn.getX());
+            config.set("mpLeaderCancelButton.y", btn.getY());
+            config.set("mpLeaderCancelButton.z", btn.getZ());
+        }
+        
         config.save(file);
     }
     
@@ -336,6 +391,78 @@ public class CourseManager {
                     course.addCheckpoint(new CheckpointRegion(index, p1, p2));
                 }
             }
+        }
+        
+        // SOLO buttons
+        if (config.contains("soloJoinButton.world")) {
+            BlockCoord btn = new BlockCoord(
+                config.getString("soloJoinButton.world"),
+                config.getInt("soloJoinButton.x"),
+                config.getInt("soloJoinButton.y"),
+                config.getInt("soloJoinButton.z")
+            );
+            course.setSoloJoinButton(btn);
+        }
+        if (config.contains("soloReturnButton.world")) {
+            BlockCoord btn = new BlockCoord(
+                config.getString("soloReturnButton.world"),
+                config.getInt("soloReturnButton.x"),
+                config.getInt("soloReturnButton.y"),
+                config.getInt("soloReturnButton.z")
+            );
+            course.setSoloReturnButton(btn);
+        }
+        
+        // MULTI items
+        if (config.contains("mpLobby.world")) {
+            World world = Bukkit.getWorld(config.getString("mpLobby.world"));
+            if (world != null) {
+                Location loc = new Location(
+                    world,
+                    config.getDouble("mpLobby.x"),
+                    config.getDouble("mpLobby.y"),
+                    config.getDouble("mpLobby.z"),
+                    (float) config.getDouble("mpLobby.yaw"),
+                    (float) config.getDouble("mpLobby.pitch")
+                );
+                course.setMpLobby(loc);
+            }
+        }
+        if (config.contains("mpJoinButton.world")) {
+            BlockCoord btn = new BlockCoord(
+                config.getString("mpJoinButton.world"),
+                config.getInt("mpJoinButton.x"),
+                config.getInt("mpJoinButton.y"),
+                config.getInt("mpJoinButton.z")
+            );
+            course.setMpJoinButton(btn);
+        }
+        if (config.contains("mpLeaderCreateButton.world")) {
+            BlockCoord btn = new BlockCoord(
+                config.getString("mpLeaderCreateButton.world"),
+                config.getInt("mpLeaderCreateButton.x"),
+                config.getInt("mpLeaderCreateButton.y"),
+                config.getInt("mpLeaderCreateButton.z")
+            );
+            course.setMpLeaderCreateButton(btn);
+        }
+        if (config.contains("mpLeaderStartButton.world")) {
+            BlockCoord btn = new BlockCoord(
+                config.getString("mpLeaderStartButton.world"),
+                config.getInt("mpLeaderStartButton.x"),
+                config.getInt("mpLeaderStartButton.y"),
+                config.getInt("mpLeaderStartButton.z")
+            );
+            course.setMpLeaderStartButton(btn);
+        }
+        if (config.contains("mpLeaderCancelButton.world")) {
+            BlockCoord btn = new BlockCoord(
+                config.getString("mpLeaderCancelButton.world"),
+                config.getInt("mpLeaderCancelButton.x"),
+                config.getInt("mpLeaderCancelButton.y"),
+                config.getInt("mpLeaderCancelButton.z")
+            );
+            course.setMpLeaderCancelButton(btn);
         }
         
         // Auto-save after migration (once, to prevent loops)

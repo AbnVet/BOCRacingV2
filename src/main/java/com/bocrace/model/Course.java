@@ -28,6 +28,17 @@ public class Course {
     // Checkpoints (each with two block coordinates and index)
     private List<CheckpointRegion> checkpoints;
     
+    // SOLO buttons
+    private BlockCoord soloJoinButton; // Mandatory for solo
+    private BlockCoord soloReturnButton; // Optional
+    
+    // MULTI course items
+    private Location mpLobby; // Where players return if cancelled
+    private BlockCoord mpJoinButton; // Mandatory for multiplayer
+    private BlockCoord mpLeaderCreateButton; // Optional
+    private BlockCoord mpLeaderStartButton; // Mandatory
+    private BlockCoord mpLeaderCancelButton; // Mandatory
+    
     public Course() {
         this.playerSpawns = new ArrayList<>();
         this.checkpoints = new ArrayList<>();
@@ -103,6 +114,64 @@ public class Course {
     
     public void addCheckpoint(CheckpointRegion checkpoint) {
         this.checkpoints.add(checkpoint);
+    }
+    
+    // SOLO button getters/setters
+    public BlockCoord getSoloJoinButton() {
+        return soloJoinButton;
+    }
+    
+    public void setSoloJoinButton(BlockCoord soloJoinButton) {
+        this.soloJoinButton = soloJoinButton;
+    }
+    
+    public BlockCoord getSoloReturnButton() {
+        return soloReturnButton;
+    }
+    
+    public void setSoloReturnButton(BlockCoord soloReturnButton) {
+        this.soloReturnButton = soloReturnButton;
+    }
+    
+    // MULTI getters/setters
+    public Location getMpLobby() {
+        return mpLobby;
+    }
+    
+    public void setMpLobby(Location mpLobby) {
+        this.mpLobby = mpLobby;
+    }
+    
+    public BlockCoord getMpJoinButton() {
+        return mpJoinButton;
+    }
+    
+    public void setMpJoinButton(BlockCoord mpJoinButton) {
+        this.mpJoinButton = mpJoinButton;
+    }
+    
+    public BlockCoord getMpLeaderCreateButton() {
+        return mpLeaderCreateButton;
+    }
+    
+    public void setMpLeaderCreateButton(BlockCoord mpLeaderCreateButton) {
+        this.mpLeaderCreateButton = mpLeaderCreateButton;
+    }
+    
+    public BlockCoord getMpLeaderStartButton() {
+        return mpLeaderStartButton;
+    }
+    
+    public void setMpLeaderStartButton(BlockCoord mpLeaderStartButton) {
+        this.mpLeaderStartButton = mpLeaderStartButton;
+    }
+    
+    public BlockCoord getMpLeaderCancelButton() {
+        return mpLeaderCancelButton;
+    }
+    
+    public void setMpLeaderCancelButton(BlockCoord mpLeaderCancelButton) {
+        this.mpLeaderCancelButton = mpLeaderCancelButton;
     }
     
     /**
