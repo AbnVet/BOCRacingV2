@@ -58,13 +58,6 @@ public class CourseManager {
     }
     
     /**
-     * Get folder for course type
-     */
-    private File getFolder(CourseType type) {
-        return type == CourseType.BOAT ? boatRacingFolder : airRacingFolder;
-    }
-    
-    /**
      * Save a course to YAML file
      */
     public void saveCourse(Course course) throws IOException {

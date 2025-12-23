@@ -1,6 +1,5 @@
 package com.bocrace.setup;
 
-import org.bukkit.Location;
 import com.bocrace.model.Course.BlockCoord;
 
 /**
