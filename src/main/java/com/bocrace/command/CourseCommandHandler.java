@@ -7,6 +7,7 @@ import com.bocrace.model.DraftCourse;
 import com.bocrace.setup.SetupSession;
 import com.bocrace.setup.SetupSessionManager;
 import com.bocrace.storage.CourseManager;
+import com.bocrace.util.CourseValidator;
 import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -54,6 +55,10 @@ public class CourseCommandHandler implements CommandExecutor, TabCompleter {
                 return handleStatus(sender, args);
             case "cancel":
                 return handleCancel(sender);
+            case "validate":
+                return handleValidate(sender, args);
+            case "publish":
+                return handlePublish(sender, args);
             default:
                 sendHelp(sender);
                 return true;
@@ -65,6 +70,8 @@ public class CourseCommandHandler implements CommandExecutor, TabCompleter {
         sender.sendMessage("§a/bocrace create <boatrace|airrace> <name> §7- Create a course");
         sender.sendMessage("§a/bocrace setup <name> <action> §7- Arm a setup action");
         sender.sendMessage("§a/bocrace status <name> §7- Show course setup progress");
+        sender.sendMessage("§a/bocrace validate <name> §7- Validate course");
+        sender.sendMessage("§a/bocrace publish <name> §7- Publish course");
         sender.sendMessage("§a/bocrace cancel §7- Cancel current armed action");
         sender.sendMessage("§7Actions: player_spawn, course_lobby, start, finish, checkpoint");
     }
@@ -338,10 +345,26 @@ public class CourseCommandHandler implements CommandExecutor, TabCompleter {
             sender.sendMessage("§e⚠ SOLO courses require exactly 1 spawn. Current: " + spawnCount);
         }
         
+        // Validation status
+        CourseValidator.ValidationResult validation = CourseValidator.validate(course);
+        boolean readyToPublish = validation.isOk();
+        
+        sender.sendMessage("");
+        sender.sendMessage("§6Validation:");
+        sender.sendMessage("  §7Status: §f" + course.getStatus());
+        sender.sendMessage("  §7Ready to publish: " + (readyToPublish ? "§aYES" : "§cNO"));
+        if (!readyToPublish && !validation.getIssues().isEmpty()) {
+            sender.sendMessage("  §7Issue: §c" + validation.getIssues().get(0));
+        }
+        
         // Next step (single command)
         sender.sendMessage("");
         sender.sendMessage("§6Next Step:");
-        if (course.getCourseLobbySpawn() == null) {
+        if (course.getStatus() == CourseStatus.PUBLISHED) {
+            sender.sendMessage("  §7→ §aPublished (play wiring pending)");
+        } else if (course.getStatus() == CourseStatus.VALIDATING) {
+            sender.sendMessage("  §7→ §a/bocrace publish " + courseName);
+        } else if (course.getCourseLobbySpawn() == null) {
             sender.sendMessage("  §7→ §a/bocrace setup " + courseName + " course_lobby");
         } else if (spawnCount == 0) {
             sender.sendMessage("  §7→ §a/bocrace setup " + courseName + " player_spawn");
@@ -349,8 +372,95 @@ public class CourseCommandHandler implements CommandExecutor, TabCompleter {
             sender.sendMessage("  §7→ §a/bocrace setup " + courseName + " start");
         } else if (!finishSet) {
             sender.sendMessage("  §7→ §a/bocrace setup " + courseName + " finish");
+        } else if (!readyToPublish) {
+            sender.sendMessage("  §7→ §a/bocrace validate " + courseName);
         } else {
-            sender.sendMessage("  §7→ §aStructurally complete. Add checkpoints if desired.");
+            sender.sendMessage("  §7→ §a/bocrace validate " + courseName);
+        }
+        
+        return true;
+    }
+    
+    private boolean handleValidate(CommandSender sender, String[] args) {
+        if (!hasPermission(sender, "bocrace.admin") && !hasPermission(sender, "bocrace.builder")) {
+            sender.sendMessage("§cYou don't have permission to validate courses!");
+            return true;
+        }
+        
+        if (args.length < 2) {
+            sender.sendMessage("§cUsage: /bocrace validate <name>");
+            return true;
+        }
+        
+        String courseName = args[1];
+        
+        DraftCourse course = courseManager.findCourse(courseName);
+        if (course == null) {
+            sender.sendMessage("§cCourse '" + courseName + "' not found!");
+            return true;
+        }
+        
+        // Run validation
+        CourseValidator.ValidationResult result = CourseValidator.validate(course);
+        
+        if (!result.isOk()) {
+            // FAIL: show issues
+            sender.sendMessage("§cValidation FAILED:");
+            List<String> issues = result.getIssues();
+            for (int i = 0; i < issues.size(); i++) {
+                sender.sendMessage("§c  " + (i + 1) + ". " + issues.get(i));
+            }
+            sender.sendMessage("§7Course status remains: " + course.getStatus());
+            return true;
+        }
+        
+        // PASS: set to VALIDATING and save
+        course.setStatus(CourseStatus.VALIDATING);
+        try {
+            courseManager.saveCourse(course);
+            sender.sendMessage("§aValidation PASSED. Course is now VALIDATING.");
+        } catch (IOException e) {
+            sender.sendMessage("§cFailed to save course: " + e.getMessage());
+            plugin.getLogger().severe("Failed to save course after validation: " + e.getMessage());
+        }
+        
+        return true;
+    }
+    
+    private boolean handlePublish(CommandSender sender, String[] args) {
+        if (!hasPermission(sender, "bocrace.admin") && !hasPermission(sender, "bocrace.builder")) {
+            sender.sendMessage("§cYou don't have permission to publish courses!");
+            return true;
+        }
+        
+        if (args.length < 2) {
+            sender.sendMessage("§cUsage: /bocrace publish <name>");
+            return true;
+        }
+        
+        String courseName = args[1];
+        
+        DraftCourse course = courseManager.findCourse(courseName);
+        if (course == null) {
+            sender.sendMessage("§cCourse '" + courseName + "' not found!");
+            return true;
+        }
+        
+        // Check status
+        if (course.getStatus() != CourseStatus.VALIDATING) {
+            sender.sendMessage("§cCourse must be VALIDATING before publishing!");
+            sender.sendMessage("§7Run /bocrace validate " + courseName + " first.");
+            return true;
+        }
+        
+        // Publish
+        course.setStatus(CourseStatus.PUBLISHED);
+        try {
+            courseManager.saveCourse(course);
+            sender.sendMessage("§aCourse PUBLISHED.");
+        } catch (IOException e) {
+            sender.sendMessage("§cFailed to save course: " + e.getMessage());
+            plugin.getLogger().severe("Failed to save course after publishing: " + e.getMessage());
         }
         
         return true;
@@ -364,7 +474,7 @@ public class CourseCommandHandler implements CommandExecutor, TabCompleter {
         }
         
         if (args.length == 1) {
-            return Arrays.asList("create", "setup", "status", "cancel").stream()
+            return Arrays.asList("create", "setup", "status", "validate", "publish", "cancel").stream()
                 .filter(cmd -> cmd.startsWith(args[0].toLowerCase()))
                 .collect(Collectors.toList());
         }
@@ -375,7 +485,8 @@ public class CourseCommandHandler implements CommandExecutor, TabCompleter {
                 return Arrays.asList("boatrace", "airrace").stream()
                     .filter(type -> type.startsWith(args[1].toLowerCase()))
                     .collect(Collectors.toList());
-            } else if (subCommand.equals("setup") || subCommand.equals("status")) {
+            } else if (subCommand.equals("setup") || subCommand.equals("status") || 
+                       subCommand.equals("validate") || subCommand.equals("publish")) {
                 // Complete course names
                 return courseManager.listAllCourses().stream()
                     .filter(name -> name.toLowerCase().startsWith(args[1].toLowerCase()))
