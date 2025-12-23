@@ -5,14 +5,13 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Represents a course draft during admin setup
+ * Represents a course configuration
  * Persisted as YAML in plugins/BOCRacingV2/boatracing/ or airracing/
  */
-public class DraftCourse {
+public class Course {
     
     private String name;
     private CourseType type;
-    private CourseStatus status;
     
     // Single course lobby spawn (with yaw, pitch=0)
     private Location courseLobbySpawn;
@@ -29,13 +28,12 @@ public class DraftCourse {
     // Checkpoints (each with two block coordinates and index)
     private List<CheckpointRegion> checkpoints;
     
-    public DraftCourse() {
-        this.status = CourseStatus.DRAFT;
+    public Course() {
         this.playerSpawns = new ArrayList<>();
         this.checkpoints = new ArrayList<>();
     }
     
-    public DraftCourse(String name, CourseType type) {
+    public Course(String name, CourseType type) {
         this();
         this.name = name;
         this.type = type;
@@ -56,14 +54,6 @@ public class DraftCourse {
     
     public void setType(CourseType type) {
         this.type = type;
-    }
-    
-    public CourseStatus getStatus() {
-        return status;
-    }
-    
-    public void setStatus(CourseStatus status) {
-        this.status = status;
     }
     
     public Location getCourseLobbySpawn() {

@@ -1,11 +1,10 @@
 package com.bocrace.storage;
 
 import com.bocrace.BOCRacingV2;
-import com.bocrace.model.CourseStatus;
 import com.bocrace.model.CourseType;
-import com.bocrace.model.DraftCourse;
-import com.bocrace.model.DraftCourse.BlockCoord;
-import com.bocrace.model.DraftCourse.CheckpointRegion;
+import com.bocrace.model.Course;
+import com.bocrace.model.Course.BlockCoord;
+import com.bocrace.model.Course.CheckpointRegion;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
@@ -68,7 +67,7 @@ public class CourseManager {
     /**
      * Save a course to YAML file
      */
-    public void saveCourse(DraftCourse course) throws IOException {
+    public void saveCourse(Course course) throws IOException {
         String safeFileName = toSafeFileName(course.getName());
         File file = getCourseFile(course.getType(), safeFileName);
         
@@ -78,7 +77,7 @@ public class CourseManager {
         config.set("displayName", course.getName());
         config.set("fileName", safeFileName);
         config.set("type", course.getType().name());
-        config.set("status", course.getStatus().name());
+        // Note: status field is no longer written (tolerated on load for compatibility)
         
         // Course lobby spawn
         if (course.getCourseLobbySpawn() != null) {
@@ -108,7 +107,7 @@ public class CourseManager {
         
         // Start region (new format: min/max volume)
         if (course.getStartRegion() != null) {
-            DraftCourse.VolumeRegion region = course.getStartRegion();
+            Course.VolumeRegion region = course.getStartRegion();
             config.set("start.world", region.getWorld());
             if (region.getMin() != null) {
                 config.set("start.min.x", region.getMin().getX());
@@ -124,7 +123,7 @@ public class CourseManager {
         
         // Finish region (new format: min/max volume)
         if (course.getFinishRegion() != null) {
-            DraftCourse.VolumeRegion region = course.getFinishRegion();
+            Course.VolumeRegion region = course.getFinishRegion();
             config.set("finish.world", region.getWorld());
             if (region.getMin() != null) {
                 config.set("finish.min.x", region.getMin().getX());
@@ -166,7 +165,7 @@ public class CourseManager {
     /**
      * Load a course from YAML file
      */
-    public DraftCourse loadCourse(CourseType type, String courseName) throws IOException {
+    public Course loadCourse(CourseType type, String courseName) throws IOException {
         String safeFileName = toSafeFileName(courseName);
         File file = getCourseFile(type, safeFileName);
         
@@ -175,12 +174,12 @@ public class CourseManager {
         }
         
         FileConfiguration config = YamlConfiguration.loadConfiguration(file);
-        DraftCourse course = new DraftCourse();
+        Course course = new Course();
         
         // Basic info
         course.setName(config.getString("displayName", courseName));
         course.setType(CourseType.valueOf(config.getString("type", type.name())));
-        course.setStatus(CourseStatus.valueOf(config.getString("status", "DRAFT")));
+        // Note: status field is tolerated on load for compatibility but not used
         
         // Course lobby spawn
         if (config.contains("courseLobby.world")) {
@@ -249,7 +248,7 @@ public class CourseManager {
             
             BlockCoord min = new BlockCoord(p1.getWorld(), minX, minY, minZ);
             BlockCoord max = new BlockCoord(p1.getWorld(), maxX, maxY, maxZ);
-            course.setStartRegion(new DraftCourse.VolumeRegion(p1.getWorld(), min, max));
+            course.setStartRegion(new Course.VolumeRegion(p1.getWorld(), min, max));
             startMigrated = true;
         } else if (config.contains("start.world") && config.contains("start.min.x") && config.contains("start.max.x")) {
             // New format
@@ -266,7 +265,7 @@ public class CourseManager {
                 config.getInt("start.max.y"),
                 config.getInt("start.max.z")
             );
-            course.setStartRegion(new DraftCourse.VolumeRegion(world, min, max));
+            course.setStartRegion(new Course.VolumeRegion(world, min, max));
         }
         
         // Finish region (new format: min/max volume, with migration from old format)
@@ -295,7 +294,7 @@ public class CourseManager {
             
             BlockCoord min = new BlockCoord(p1.getWorld(), minX, minY, minZ);
             BlockCoord max = new BlockCoord(p1.getWorld(), maxX, maxY, maxZ);
-            course.setFinishRegion(new DraftCourse.VolumeRegion(p1.getWorld(), min, max));
+            course.setFinishRegion(new Course.VolumeRegion(p1.getWorld(), min, max));
             finishMigrated = true;
         } else if (config.contains("finish.world") && config.contains("finish.min.x") && config.contains("finish.max.x")) {
             // New format
@@ -312,7 +311,7 @@ public class CourseManager {
                 config.getInt("finish.max.y"),
                 config.getInt("finish.max.z")
             );
-            course.setFinishRegion(new DraftCourse.VolumeRegion(world, min, max));
+            course.setFinishRegion(new Course.VolumeRegion(world, min, max));
         }
         
         // Checkpoints
@@ -362,10 +361,10 @@ public class CourseManager {
     /**
      * Find course by name (searches both folders)
      */
-    public DraftCourse findCourse(String courseName) {
+    public Course findCourse(String courseName) {
         // Try boat racing first
         try {
-            DraftCourse course = loadCourse(CourseType.BOAT, courseName);
+            Course course = loadCourse(CourseType.BOAT, courseName);
             if (course != null) {
                 return course;
             }

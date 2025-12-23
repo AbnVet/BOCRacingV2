@@ -1,9 +1,9 @@
 package com.bocrace.listener;
 
 import com.bocrace.BOCRacingV2;
-import com.bocrace.model.DraftCourse;
-import com.bocrace.model.DraftCourse.BlockCoord;
-import com.bocrace.model.DraftCourse.CheckpointRegion;
+import com.bocrace.model.Course;
+import com.bocrace.model.Course.BlockCoord;
+import com.bocrace.model.Course.CheckpointRegion;
 import com.bocrace.setup.SetupSession;
 import com.bocrace.setup.SetupSessionManager;
 import com.bocrace.storage.CourseManager;
@@ -67,7 +67,7 @@ public class SetupListener implements Listener {
         String worldName = blockLoc.getWorld().getName();
         
         // Load course
-        DraftCourse course = courseManager.findCourse(session.getCourseName());
+        Course course = courseManager.findCourse(session.getCourseName());
         if (course == null) {
             player.sendMessage("§cCourse not found!");
             sessionManager.clearSession(player);
@@ -119,7 +119,7 @@ public class SetupListener implements Listener {
         }
     }
     
-    private boolean handlePlayerSpawn(Player player, DraftCourse draft, Location blockLoc) {
+    private boolean handlePlayerSpawn(Player player, Course draft, Location blockLoc) {
         // Center of block, above block, with yaw from player view, pitch=0
         Location spawnLoc = new Location(
             blockLoc.getWorld(),
@@ -139,7 +139,7 @@ public class SetupListener implements Listener {
         return true;
     }
     
-    private boolean handleCourseLobby(Player player, DraftCourse draft, Location blockLoc) {
+    private boolean handleCourseLobby(Player player, Course draft, Location blockLoc) {
         // Center of block, above block, with yaw from player view, pitch=0
         Location lobbyLoc = new Location(
             blockLoc.getWorld(),
@@ -158,7 +158,7 @@ public class SetupListener implements Listener {
         return true;
     }
     
-    private boolean handleStartRegion(Player player, SetupSession session, DraftCourse draft, Location blockLoc, String worldName) {
+    private boolean handleStartRegion(Player player, SetupSession session, Course draft, Location blockLoc, String worldName) {
         BlockCoord corner = new BlockCoord(worldName, blockLoc.getBlockX(), blockLoc.getBlockY(), blockLoc.getBlockZ());
         
         if (session.getPendingPoint1() == null) {
@@ -184,7 +184,7 @@ public class SetupListener implements Listener {
             
             BlockCoord min = new BlockCoord(worldName, minX, minY, minZ);
             BlockCoord max = new BlockCoord(worldName, maxX, maxY, maxZ);
-            DraftCourse.VolumeRegion volume = new DraftCourse.VolumeRegion(worldName, min, max);
+            Course.VolumeRegion volume = new Course.VolumeRegion(worldName, min, max);
             draft.setStartRegion(volume);
             
             session.clearPendingPoint1();
@@ -198,7 +198,7 @@ public class SetupListener implements Listener {
         }
     }
     
-    private boolean handleFinishRegion(Player player, SetupSession session, DraftCourse draft, Location blockLoc, String worldName) {
+    private boolean handleFinishRegion(Player player, SetupSession session, Course draft, Location blockLoc, String worldName) {
         BlockCoord corner = new BlockCoord(worldName, blockLoc.getBlockX(), blockLoc.getBlockY(), blockLoc.getBlockZ());
         
         if (session.getPendingPoint1() == null) {
@@ -224,7 +224,7 @@ public class SetupListener implements Listener {
             
             BlockCoord min = new BlockCoord(worldName, minX, minY, minZ);
             BlockCoord max = new BlockCoord(worldName, maxX, maxY, maxZ);
-            DraftCourse.VolumeRegion volume = new DraftCourse.VolumeRegion(worldName, min, max);
+            Course.VolumeRegion volume = new Course.VolumeRegion(worldName, min, max);
             draft.setFinishRegion(volume);
             
             session.clearPendingPoint1();
@@ -238,7 +238,7 @@ public class SetupListener implements Listener {
         }
     }
     
-    private boolean handleCheckpointRegion(Player player, SetupSession session, DraftCourse draft, Location blockLoc, String worldName) {
+    private boolean handleCheckpointRegion(Player player, SetupSession session, Course draft, Location blockLoc, String worldName) {
         BlockCoord point = new BlockCoord(worldName, blockLoc.getBlockX(), blockLoc.getBlockY(), blockLoc.getBlockZ());
         
         if (session.getPendingPoint1() == null) {

@@ -1,6 +1,6 @@
 package com.bocrace.util;
 
-import com.bocrace.model.DraftCourse;
+import com.bocrace.model.Course;
 import org.bukkit.Bukkit;
 import org.bukkit.World;
 
@@ -8,7 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Validates a DraftCourse for completeness and correctness
+ * Validates a Course for completeness and correctness
  */
 public class CourseValidator {
     
@@ -36,7 +36,7 @@ public class CourseValidator {
     /**
      * Validate a course
      */
-    public static ValidationResult validate(DraftCourse course) {
+    public static ValidationResult validate(Course course) {
         List<String> issues = new ArrayList<>();
         
         // 1. Course lobby must be set and world loaded

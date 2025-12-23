@@ -1,9 +1,8 @@
 package com.bocrace.command;
 
 import com.bocrace.BOCRacingV2;
-import com.bocrace.model.CourseStatus;
 import com.bocrace.model.CourseType;
-import com.bocrace.model.DraftCourse;
+import com.bocrace.model.Course;
 import com.bocrace.setup.SetupSession;
 import com.bocrace.setup.SetupSessionManager;
 import com.bocrace.storage.CourseManager;
@@ -57,8 +56,6 @@ public class CourseCommandHandler implements CommandExecutor, TabCompleter {
                 return handleCancel(sender);
             case "validate":
                 return handleValidate(sender, args);
-            case "publish":
-                return handlePublish(sender, args);
             default:
                 sendHelp(sender);
                 return true;
@@ -70,10 +67,10 @@ public class CourseCommandHandler implements CommandExecutor, TabCompleter {
         sender.sendMessage("§a/bocrace create <boatrace|airrace> <name> §7- Create a course");
         sender.sendMessage("§a/bocrace setup <name> <action> §7- Arm a setup action");
         sender.sendMessage("§a/bocrace status <name> §7- Show course setup progress");
-        sender.sendMessage("§a/bocrace validate <name> §7- Validate course");
-        sender.sendMessage("§a/bocrace publish <name> §7- Publish course");
+        sender.sendMessage("§a/bocrace validate <name> §7- Check course validation");
         sender.sendMessage("§a/bocrace cancel §7- Cancel current armed action");
         sender.sendMessage("§7Actions: player_spawn, course_lobby, start, finish, checkpoint");
+        sender.sendMessage("§7Note: Courses are saved immediately. Incomplete courses are blocked from use.");
     }
     
     /**
@@ -133,14 +130,12 @@ public class CourseCommandHandler implements CommandExecutor, TabCompleter {
         }
         
         // Create course
-        DraftCourse course = new DraftCourse(courseName, type);
-        course.setStatus(CourseStatus.DRAFT);
+        Course course = new Course(courseName, type);
         
         try {
             courseManager.saveCourse(course);
             sender.sendMessage("§aCourse '" + courseName + "' created!");
             sender.sendMessage("§7Type: " + type);
-            sender.sendMessage("§7Status: DRAFT");
             sender.sendMessage("§7Use /bocrace setup " + courseName + " <action> to configure");
         } catch (IOException e) {
             sender.sendMessage("§cFailed to save course: " + e.getMessage());
@@ -171,7 +166,7 @@ public class CourseCommandHandler implements CommandExecutor, TabCompleter {
         String actionStr = args[2].toLowerCase();
         
         // Find course (searches both folders)
-        DraftCourse course = courseManager.findCourse(courseName);
+        Course course = courseManager.findCourse(courseName);
         if (course == null) {
             sender.sendMessage("§cCourse '" + courseName + "' not found!");
             sender.sendMessage("§7Create it first with /bocrace create <boatrace|airrace> " + courseName);
@@ -270,7 +265,7 @@ public class CourseCommandHandler implements CommandExecutor, TabCompleter {
         
         String courseName = args[1];
         
-        DraftCourse course = courseManager.findCourse(courseName);
+        Course course = courseManager.findCourse(courseName);
         if (course == null) {
             sender.sendMessage("§cCourse '" + courseName + "' not found!");
             return true;
@@ -294,7 +289,7 @@ public class CourseCommandHandler implements CommandExecutor, TabCompleter {
         
         // Show status
         sender.sendMessage("§6═══ Course Status: " + course.getName() + " ═══");
-        sender.sendMessage("§7Type: §f" + course.getType() + " §7│ Status: §f" + course.getStatus());
+        sender.sendMessage("§7Type: §f" + course.getType());
         sender.sendMessage("§7File: §f" + filePath);
         sender.sendMessage("");
         
@@ -347,24 +342,19 @@ public class CourseCommandHandler implements CommandExecutor, TabCompleter {
         
         // Validation status
         CourseValidator.ValidationResult validation = CourseValidator.validate(course);
-        boolean readyToPublish = validation.isOk();
+        boolean courseReady = validation.isOk();
         
         sender.sendMessage("");
         sender.sendMessage("§6Validation:");
-        sender.sendMessage("  §7Status: §f" + course.getStatus());
-        sender.sendMessage("  §7Ready to publish: " + (readyToPublish ? "§aYES" : "§cNO"));
-        if (!readyToPublish && !validation.getIssues().isEmpty()) {
+        sender.sendMessage("  §7Course Ready: " + (courseReady ? "§aYES" : "§cNO"));
+        if (!courseReady && !validation.getIssues().isEmpty()) {
             sender.sendMessage("  §7Issue: §c" + validation.getIssues().get(0));
         }
         
         // Next step (single command)
         sender.sendMessage("");
         sender.sendMessage("§6Next Step:");
-        if (course.getStatus() == CourseStatus.PUBLISHED) {
-            sender.sendMessage("  §7→ §aPublished (play wiring pending)");
-        } else if (course.getStatus() == CourseStatus.VALIDATING) {
-            sender.sendMessage("  §7→ §a/bocrace publish " + courseName);
-        } else if (course.getCourseLobbySpawn() == null) {
+        if (course.getCourseLobbySpawn() == null) {
             sender.sendMessage("  §7→ §a/bocrace setup " + courseName + " course_lobby");
         } else if (spawnCount == 0) {
             sender.sendMessage("  §7→ §a/bocrace setup " + courseName + " player_spawn");
@@ -372,10 +362,10 @@ public class CourseCommandHandler implements CommandExecutor, TabCompleter {
             sender.sendMessage("  §7→ §a/bocrace setup " + courseName + " start");
         } else if (!finishSet) {
             sender.sendMessage("  §7→ §a/bocrace setup " + courseName + " finish");
-        } else if (!readyToPublish) {
+        } else if (!courseReady) {
             sender.sendMessage("  §7→ §a/bocrace validate " + courseName);
         } else {
-            sender.sendMessage("  §7→ §a/bocrace validate " + courseName);
+            sender.sendMessage("  §7→ §aCourse complete and ready for use");
         }
         
         return true;
@@ -394,13 +384,13 @@ public class CourseCommandHandler implements CommandExecutor, TabCompleter {
         
         String courseName = args[1];
         
-        DraftCourse course = courseManager.findCourse(courseName);
+        Course course = courseManager.findCourse(courseName);
         if (course == null) {
             sender.sendMessage("§cCourse '" + courseName + "' not found!");
             return true;
         }
         
-        // Run validation
+        // Run validation (read-only, no status changes)
         CourseValidator.ValidationResult result = CourseValidator.validate(course);
         
         if (!result.isOk()) {
@@ -410,58 +400,12 @@ public class CourseCommandHandler implements CommandExecutor, TabCompleter {
             for (int i = 0; i < issues.size(); i++) {
                 sender.sendMessage("§c  " + (i + 1) + ". " + issues.get(i));
             }
-            sender.sendMessage("§7Course status remains: " + course.getStatus());
             return true;
         }
         
-        // PASS: set to VALIDATING and save
-        course.setStatus(CourseStatus.VALIDATING);
-        try {
-            courseManager.saveCourse(course);
-            sender.sendMessage("§aValidation PASSED. Course is now VALIDATING.");
-        } catch (IOException e) {
-            sender.sendMessage("§cFailed to save course: " + e.getMessage());
-            plugin.getLogger().severe("Failed to save course after validation: " + e.getMessage());
-        }
-        
-        return true;
-    }
-    
-    private boolean handlePublish(CommandSender sender, String[] args) {
-        if (!hasPermission(sender, "bocrace.admin") && !hasPermission(sender, "bocrace.builder")) {
-            sender.sendMessage("§cYou don't have permission to publish courses!");
-            return true;
-        }
-        
-        if (args.length < 2) {
-            sender.sendMessage("§cUsage: /bocrace publish <name>");
-            return true;
-        }
-        
-        String courseName = args[1];
-        
-        DraftCourse course = courseManager.findCourse(courseName);
-        if (course == null) {
-            sender.sendMessage("§cCourse '" + courseName + "' not found!");
-            return true;
-        }
-        
-        // Check status
-        if (course.getStatus() != CourseStatus.VALIDATING) {
-            sender.sendMessage("§cCourse must be VALIDATING before publishing!");
-            sender.sendMessage("§7Run /bocrace validate " + courseName + " first.");
-            return true;
-        }
-        
-        // Publish
-        course.setStatus(CourseStatus.PUBLISHED);
-        try {
-            courseManager.saveCourse(course);
-            sender.sendMessage("§aCourse PUBLISHED.");
-        } catch (IOException e) {
-            sender.sendMessage("§cFailed to save course: " + e.getMessage());
-            plugin.getLogger().severe("Failed to save course after publishing: " + e.getMessage());
-        }
+        // PASS: show success (no status change, no save)
+        sender.sendMessage("§aValidation PASSED.");
+        sender.sendMessage("§7Course is ready for use.");
         
         return true;
     }
@@ -474,7 +418,7 @@ public class CourseCommandHandler implements CommandExecutor, TabCompleter {
         }
         
         if (args.length == 1) {
-            return Arrays.asList("create", "setup", "status", "validate", "publish", "cancel").stream()
+            return Arrays.asList("create", "setup", "status", "validate", "cancel").stream()
                 .filter(cmd -> cmd.startsWith(args[0].toLowerCase()))
                 .collect(Collectors.toList());
         }
@@ -486,7 +430,7 @@ public class CourseCommandHandler implements CommandExecutor, TabCompleter {
                     .filter(type -> type.startsWith(args[1].toLowerCase()))
                     .collect(Collectors.toList());
             } else if (subCommand.equals("setup") || subCommand.equals("status") || 
-                       subCommand.equals("validate") || subCommand.equals("publish")) {
+                       subCommand.equals("validate")) {
                 // Complete course names
                 return courseManager.listAllCourses().stream()
                     .filter(name -> name.toLowerCase().startsWith(args[1].toLowerCase()))

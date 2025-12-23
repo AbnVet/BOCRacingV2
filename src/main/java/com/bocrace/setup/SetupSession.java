@@ -1,7 +1,7 @@
 package com.bocrace.setup;
 
 import org.bukkit.Location;
-import com.bocrace.model.DraftCourse.BlockCoord;
+import com.bocrace.model.Course.BlockCoord;
 
 /**
  * Tracks a single admin's setup session
