@@ -6,7 +6,7 @@ import java.util.List;
 
 /**
  * Represents a course draft during admin setup
- * Persisted as JSON in plugins/BOCRacingV2/drafts/
+ * Persisted as YAML in plugins/BOCRacingV2/boatracing/ or airracing/
  */
 public class DraftCourse {
     

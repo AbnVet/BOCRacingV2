@@ -7,12 +7,14 @@ import com.bocrace.model.DraftCourse;
 import com.bocrace.setup.SetupSession;
 import com.bocrace.setup.SetupSessionManager;
 import com.bocrace.storage.CourseManager;
+import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -107,9 +109,19 @@ public class CourseCommandHandler implements CommandExecutor, TabCompleter {
             return true;
         }
         
-        // Check if course already exists
+        // Check if course already exists (by display name)
         if (courseManager.courseExists(courseName)) {
             sender.sendMessage("§cCourse '" + courseName + "' already exists!");
+            return true;
+        }
+        
+        // Check for filename collision in target folder
+        String safeFileName = CourseManager.toSafeFileName(courseName);
+        File targetFile = courseManager.getCourseFile(type, safeFileName);
+        if (targetFile.exists()) {
+            sender.sendMessage("§cA course with filename '" + safeFileName + ".yml' already exists in " + 
+                             (type == CourseType.BOAT ? "boatracing" : "airracing") + " folder!");
+            sender.sendMessage("§7Please use a different course name.");
             return true;
         }
         
@@ -287,12 +299,44 @@ public class CourseCommandHandler implements CommandExecutor, TabCompleter {
                            course.getFinishRegion().getMin() != null && 
                            course.getFinishRegion().getMax() != null;
         
+        // Check for world-not-loaded issues
+        boolean startWorldMissing = false;
+        boolean finishWorldMissing = false;
+        if (course.getStartRegion() != null && course.getStartRegion().getWorld() != null) {
+            startWorldMissing = Bukkit.getWorld(course.getStartRegion().getWorld()) == null;
+        }
+        if (course.getFinishRegion() != null && course.getFinishRegion().getWorld() != null) {
+            finishWorldMissing = Bukkit.getWorld(course.getFinishRegion().getWorld()) == null;
+        }
+        
         sender.sendMessage("§6Checklist:");
-        sender.sendMessage("  " + (course.getCourseLobbySpawn() != null ? "§a✓" : "§c✗") + " §7Course Lobby: " + (course.getCourseLobbySpawn() != null ? "§aSET" : "§cMISSING"));
-        sender.sendMessage("  " + (spawnCount > 0 ? "§a✓" : "§c✗") + " §7Player Spawns: §f" + spawnCount + " §7(" + mode + "§7)");
-        sender.sendMessage("  " + (startSet ? "§a✓" : "§c✗") + " §7Start Line: " + (startSet ? "§aSET" : "§cMISSING"));
-        sender.sendMessage("  " + (finishSet ? "§a✓" : "§c✗") + " §7Finish Line: " + (finishSet ? "§aSET" : "§cMISSING"));
+        String lobbyStatus = course.getCourseLobbySpawn() != null ? "§aSET" : "§cMISSING";
+        // Note: If location is null, we can't distinguish "never set" from "world not loaded"
+        // Locations are only created when world is loaded, so if it exists, world should be non-null
+        boolean lobbyValid = course.getCourseLobbySpawn() != null && course.getCourseLobbySpawn().getWorld() != null;
+        sender.sendMessage("  " + (lobbyValid ? "§a✓" : "§c✗") + " §7Course Lobby: " + lobbyStatus);
+        
+        String spawnStatus = spawnCount + " §7(" + mode + "§7)";
+        sender.sendMessage("  " + (spawnCount > 0 ? "§a✓" : "§c✗") + " §7Player Spawns: §f" + spawnStatus);
+        
+        String startStatus = startSet ? "§aSET" : "§cMISSING";
+        if (startWorldMissing) {
+            startStatus = "§cMISSING (World '" + course.getStartRegion().getWorld() + "' not loaded)";
+        }
+        sender.sendMessage("  " + (startSet && !startWorldMissing ? "§a✓" : "§c✗") + " §7Start Line: " + startStatus);
+        
+        String finishStatus = finishSet ? "§aSET" : "§cMISSING";
+        if (finishWorldMissing) {
+            finishStatus = "§cMISSING (World '" + course.getFinishRegion().getWorld() + "' not loaded)";
+        }
+        sender.sendMessage("  " + (finishSet && !finishWorldMissing ? "§a✓" : "§c✗") + " §7Finish Line: " + finishStatus);
         sender.sendMessage("  " + (course.getCheckpoints().size() > 0 ? "§a✓" : "§7○") + " §7Checkpoints: §f" + course.getCheckpoints().size());
+        
+        // SOLO rule warning
+        if (spawnCount != 1) {
+            sender.sendMessage("");
+            sender.sendMessage("§e⚠ SOLO courses require exactly 1 spawn. Current: " + spawnCount);
+        }
         
         // Next step (single command)
         sender.sendMessage("");

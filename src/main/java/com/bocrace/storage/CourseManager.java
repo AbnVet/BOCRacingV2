@@ -53,7 +53,7 @@ public class CourseManager {
     /**
      * Get course file for a given type and name
      */
-    private File getCourseFile(CourseType type, String safeFileName) {
+    public File getCourseFile(CourseType type, String safeFileName) {
         File folder = type == CourseType.BOAT ? boatRacingFolder : airRacingFolder;
         return new File(folder, safeFileName + ".yml");
     }
@@ -184,7 +184,8 @@ public class CourseManager {
         
         // Course lobby spawn
         if (config.contains("courseLobby.world")) {
-            World world = Bukkit.getWorld(config.getString("courseLobby.world"));
+            String worldName = config.getString("courseLobby.world");
+            World world = Bukkit.getWorld(worldName);
             if (world != null) {
                 Location loc = new Location(
                     world,
@@ -195,6 +196,8 @@ public class CourseManager {
                     (float) config.getDouble("courseLobby.pitch")
                 );
                 course.setCourseLobbySpawn(loc);
+            } else {
+                plugin.getLogger().warning("Course '" + courseName + "': World '" + worldName + "' not loaded for course lobby spawn");
             }
         }
         
@@ -202,7 +205,8 @@ public class CourseManager {
         if (config.contains("playerSpawns")) {
             for (String key : config.getConfigurationSection("playerSpawns").getKeys(false)) {
                 String path = "playerSpawns." + key;
-                World world = Bukkit.getWorld(config.getString(path + ".world"));
+                String worldName = config.getString(path + ".world");
+                World world = Bukkit.getWorld(worldName);
                 if (world != null) {
                     Location loc = new Location(
                         world,
@@ -213,11 +217,14 @@ public class CourseManager {
                         (float) config.getDouble(path + ".pitch")
                     );
                     course.addPlayerSpawn(loc);
+                } else {
+                    plugin.getLogger().warning("Course '" + courseName + "': World '" + worldName + "' not loaded for player spawn #" + key);
                 }
             }
         }
         
         // Start region (new format: min/max volume, with migration from old format)
+        boolean startMigrated = false;
         if (config.contains("start.point1.world") && config.contains("start.point2.world")) {
             // Old format - migrate to new format
             BlockCoord p1 = new BlockCoord(
@@ -243,6 +250,7 @@ public class CourseManager {
             BlockCoord min = new BlockCoord(p1.getWorld(), minX, minY, minZ);
             BlockCoord max = new BlockCoord(p1.getWorld(), maxX, maxY, maxZ);
             course.setStartRegion(new DraftCourse.VolumeRegion(p1.getWorld(), min, max));
+            startMigrated = true;
         } else if (config.contains("start.world") && config.contains("start.min.x") && config.contains("start.max.x")) {
             // New format
             String world = config.getString("start.world");
@@ -262,6 +270,7 @@ public class CourseManager {
         }
         
         // Finish region (new format: min/max volume, with migration from old format)
+        boolean finishMigrated = false;
         if (config.contains("finish.point1.world") && config.contains("finish.point2.world")) {
             // Old format - migrate to new format
             BlockCoord p1 = new BlockCoord(
@@ -287,6 +296,7 @@ public class CourseManager {
             BlockCoord min = new BlockCoord(p1.getWorld(), minX, minY, minZ);
             BlockCoord max = new BlockCoord(p1.getWorld(), maxX, maxY, maxZ);
             course.setFinishRegion(new DraftCourse.VolumeRegion(p1.getWorld(), min, max));
+            finishMigrated = true;
         } else if (config.contains("finish.world") && config.contains("finish.min.x") && config.contains("finish.max.x")) {
             // New format
             String world = config.getString("finish.world");
@@ -333,6 +343,16 @@ public class CourseManager {
                 if (p1 != null && p2 != null) {
                     course.addCheckpoint(new CheckpointRegion(index, p1, p2));
                 }
+            }
+        }
+        
+        // Auto-save after migration (once, to prevent loops)
+        if (startMigrated || finishMigrated) {
+            try {
+                saveCourse(course);
+                plugin.getLogger().info("Course '" + courseName + "' migrated from old start/finish format and auto-saved");
+            } catch (IOException e) {
+                plugin.getLogger().warning("Failed to auto-save migrated course '" + courseName + "': " + e.getMessage());
             }
         }
         
