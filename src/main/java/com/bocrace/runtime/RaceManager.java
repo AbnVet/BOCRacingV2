@@ -192,6 +192,80 @@ public class RaceManager {
     }
     
     /**
+     * Find lobby by player UUID
+     * @return Pair of (CourseKey, MultiLobbyState) or null if not found
+     */
+    public static class LobbyResult {
+        private final CourseKey courseKey;
+        private final MultiLobbyState lobby;
+        
+        public LobbyResult(CourseKey courseKey, MultiLobbyState lobby) {
+            this.courseKey = courseKey;
+            this.lobby = lobby;
+        }
+        
+        public CourseKey getCourseKey() {
+            return courseKey;
+        }
+        
+        public MultiLobbyState getLobby() {
+            return lobby;
+        }
+    }
+    
+    public LobbyResult findLobbyByPlayer(UUID playerUuid) {
+        for (Map.Entry<CourseKey, MultiLobbyState> entry : activeMultiLobbies.entrySet()) {
+            MultiLobbyState lobby = entry.getValue();
+            if (lobby.getJoinedPlayers().containsKey(playerUuid) || 
+                (lobby.getLeaderUuid() != null && lobby.getLeaderUuid().equals(playerUuid))) {
+                return new LobbyResult(entry.getKey(), lobby);
+            }
+        }
+        return null;
+    }
+    
+    /**
+     * Remove player from lobby and free their spawn
+     * @return true if player was removed, false if not found
+     */
+    public boolean removePlayerFromLobby(UUID playerUuid, String reasonMessage) {
+        LobbyResult result = findLobbyByPlayer(playerUuid);
+        if (result == null) {
+            return false;
+        }
+        
+        MultiLobbyState lobby = result.getLobby();
+        boolean wasInLobby = lobby.getJoinedPlayers().containsKey(playerUuid);
+        boolean wasLeader = lobby.getLeaderUuid() != null && lobby.getLeaderUuid().equals(playerUuid);
+        
+        // Remove from joined players and free spawn
+        if (wasInLobby) {
+            Integer spawnIndex = lobby.getJoinedPlayers().remove(playerUuid);
+            if (spawnIndex != null) {
+                lobby.getUsedSpawnIndices().remove(spawnIndex);
+            }
+        }
+        
+        // Handle leader reassignment or lobby deletion
+        if (wasLeader) {
+            lobby.setLeaderUuid(null);
+            
+            if (lobby.getJoinedPlayers().isEmpty()) {
+                // Lobby empty, delete it
+                activeMultiLobbies.remove(result.getCourseKey());
+                return true;
+            } else {
+                // Assign new leader (first player in keyset)
+                UUID newLeader = lobby.getJoinedPlayers().keySet().iterator().next();
+                lobby.setLeaderUuid(newLeader);
+                // Notify will be done by caller
+            }
+        }
+        
+        return wasInLobby || wasLeader;
+    }
+    
+    /**
      * Clear all state (on plugin disable)
      */
     public void clearAll() {

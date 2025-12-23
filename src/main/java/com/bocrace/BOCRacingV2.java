@@ -3,6 +3,7 @@ package com.bocrace;
 import com.bocrace.command.BOCRaceCommand;
 import com.bocrace.command.CourseCommandHandler;
 import com.bocrace.listener.CourseButtonListener;
+import com.bocrace.listener.PlayerLifecycleListener;
 import com.bocrace.listener.SetupListener;
 import com.bocrace.runtime.RaceManager;
 import com.bocrace.setup.SetupSessionManager;
@@ -39,6 +40,10 @@ public class BOCRacingV2 extends JavaPlugin {
         );
         getServer().getPluginManager().registerEvents(
             new CourseButtonListener(this, courseManager, raceManager),
+            this
+        );
+        getServer().getPluginManager().registerEvents(
+            new PlayerLifecycleListener(this, raceManager, courseManager),
             this
         );
     }

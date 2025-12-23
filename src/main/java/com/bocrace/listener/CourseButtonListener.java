@@ -188,6 +188,12 @@ public class CourseButtonListener implements Listener {
         RaceManager.CourseKey key = new RaceManager.CourseKey(course.getType().name(), course.getName());
         RaceManager.MultiLobbyState lobby = raceManager.getOrCreateMultiLobby(key);
         
+        // Prevent join if race already started
+        if (lobby.getState() == RaceManager.MultiLobbyState.LobbyState.IN_PROGRESS) {
+            player.sendMessage("§cRace already started.");
+            return;
+        }
+        
         // Check if already joined
         if (lobby.getJoinedPlayers().containsKey(player.getUniqueId())) {
             player.sendMessage("§cYou're already in the lobby.");
@@ -250,6 +256,12 @@ public class CourseButtonListener implements Listener {
         
         RaceManager.CourseKey key = new RaceManager.CourseKey(course.getType().name(), course.getName());
         RaceManager.MultiLobbyState lobby = raceManager.getOrCreateMultiLobby(key);
+        
+        // Prevent start if not OPEN (already STARTING or IN_PROGRESS)
+        if (lobby.getState() != RaceManager.MultiLobbyState.LobbyState.OPEN) {
+            player.sendMessage("§cRace already starting or in progress.");
+            return;
+        }
         
         // Set leader if not set
         if (lobby.getLeaderUuid() == null) {
