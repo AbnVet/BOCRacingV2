@@ -70,6 +70,14 @@ public class CourseManager {
     }
     
     /**
+     * Get course file name (for database storage)
+     */
+    public String getCourseFileName(CourseType type, String courseName) {
+        String safeFileName = toSafeFileName(courseName);
+        return safeFileName + ".yml";
+    }
+    
+    /**
      * Save a course to YAML file
      */
     public void saveCourse(Course course) throws IOException {

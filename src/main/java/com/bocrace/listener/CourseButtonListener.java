@@ -196,12 +196,23 @@ public class CourseButtonListener implements Listener {
         // Create active run
         RaceManager.ActiveRun run = raceManager.createActiveRun(key, player.getUniqueId(), 0);
         
+        // Database: Create run record (async)
+        if (plugin.getRunDao() != null && plugin.getPlayerDao() != null) {
+            plugin.getPlayerDao().upsertPlayer(player.getUniqueId(), player.getName());
+            String courseFile = courseManager.getCourseFileName(course.getType(), course.getName());
+            plugin.getRunDao().createRun(run.getRunId(), course.getName(), course.getType().name(), courseFile,
+                                        player.getUniqueId(), startMode, 
+                                        course.getSettings().getRules().isRequireCheckpoints(),
+                                        course.getSettings().getDrop().getShape());
+        }
+        
         // Debug log run creation
         Map<String, Object> runKv = new HashMap<>();
         runKv.put("course", course.getName());
         runKv.put("player", player.getName());
         runKv.put("spawnIndex", 0);
         runKv.put("startMode", startMode.name());
+        runKv.put("runId", run.getRunId());
         plugin.getDebugLog().info(DebugLog.Tag.STATE, "CourseButtonListener", "RUN_CREATE (SOLO)", runKv);
         
         // Start countdown
@@ -233,7 +244,13 @@ public class CourseButtonListener implements Listener {
                         player.sendMessage("§7Cross the start line to begin!");
                     } else if (startMode == Course.StartMode.DROP_START) {
                         // Start timer immediately
-                        run.setStartMillis(System.currentTimeMillis());
+                        long startMillis = System.currentTimeMillis();
+                        run.setStartMillis(startMillis);
+                        
+                        // Database: Mark run as started (async)
+                        if (plugin.getRunDao() != null) {
+                            plugin.getRunDao().markStarted(run.getRunId(), startMillis);
+                        }
                         
                         // Debug log (run start for DROP_START)
                         Map<String, Object> startKv = new HashMap<>();
@@ -457,12 +474,23 @@ public class CourseButtonListener implements Listener {
                     RaceManager.ActiveRun run = raceManager.createActiveRun(key, uuid, spawnIdx);
                     runs.put(uuid, run);
                     
+                    // Database: Create run record (async)
+                    if (plugin.getRunDao() != null && plugin.getPlayerDao() != null) {
+                        plugin.getPlayerDao().upsertPlayer(uuid, p.getName());
+                        String courseFile = courseManager.getCourseFileName(course.getType(), course.getName());
+                        plugin.getRunDao().createRun(run.getRunId(), course.getName(), course.getType().name(), courseFile,
+                                                    uuid, startMode,
+                                                    course.getSettings().getRules().isRequireCheckpoints(),
+                                                    course.getSettings().getDrop().getShape());
+                    }
+                    
                     // Debug log run creation
                     Map<String, Object> runKv = new HashMap<>();
                     runKv.put("course", course.getName());
                     runKv.put("player", p.getName());
                     runKv.put("spawnIndex", spawnIdx);
                     runKv.put("startMode", startMode.name());
+                    runKv.put("runId", run.getRunId());
                     plugin.getDebugLog().info(DebugLog.Tag.STATE, "CourseButtonListener", "RUN_CREATE (MP)", runKv);
                 }
             }
@@ -518,7 +546,13 @@ public class CourseButtonListener implements Listener {
                             p.sendMessage("§7Cross the start line to begin!");
                         } else if (startMode == Course.StartMode.DROP_START) {
                             // Start timer immediately
-                            run.setStartMillis(System.currentTimeMillis());
+                            long startMillis = System.currentTimeMillis();
+                            run.setStartMillis(startMillis);
+                            
+                            // Database: Mark run as started (async)
+                            if (plugin.getRunDao() != null) {
+                                plugin.getRunDao().markStarted(run.getRunId(), startMillis);
+                            }
                             
                             // Debug log (run start for DROP_START)
                             Map<String, Object> startKv = new HashMap<>();
@@ -574,6 +608,14 @@ public class CourseButtonListener implements Listener {
         
         // Cancel any pending block drops
         dropBlockManager.cancelAllDrops(key);
+        
+        // Database: Abort all runs in lobby (async)
+        if (plugin.getRunDao() != null) {
+            Map<UUID, RaceManager.ActiveRun> runs = raceManager.getActiveRuns(key);
+            for (RaceManager.ActiveRun run : runs.values()) {
+                plugin.getRunDao().abortRun(run.getRunId(), "Leader cancelled race");
+            }
+        }
         
         // Clear active runs and lobby
         raceManager.clearActiveRuns(key);

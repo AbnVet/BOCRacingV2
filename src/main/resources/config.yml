@@ -20,3 +20,37 @@ debug:
   enabled: false
   maxFileSizeMB: 5
   maxFiles: 5
+
+# === DATABASE ===
+# Database configuration for storing race records and player data
+#
+# type: Database type (SQLITE or MYSQL)
+#        SQLITE = Embedded SQLite database (file-based, recommended for single-server setups)
+#        MYSQL = MySQL/MariaDB database (required for multi-server setups)
+#
+# pool.maxConnections: Maximum number of concurrent database connections in the pool
+#                      Default: 10 (SQLite), 20 (MySQL)
+#
+# SQLite configuration:
+#   file: Database file name (relative to plugin data folder)
+#         Default: bocracing.db
+#
+# MySQL configuration:
+#   host: Database server hostname or IP address
+#   port: Database server port (default: 3306)
+#   database: Database name
+#   username: Database username
+#   password: Database password
+#
+database:
+  type: SQLITE
+  sqlite:
+    file: bocracing.db
+  mysql:
+    host: localhost
+    port: 3306
+    database: bocracing
+    username: root
+    password: password
+  pool:
+    maxConnections: 10

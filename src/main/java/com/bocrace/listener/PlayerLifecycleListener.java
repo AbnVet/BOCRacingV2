@@ -74,6 +74,11 @@ public class PlayerLifecycleListener implements Listener {
                 // Check if it's a solo run (only 1 player in course runs)
                 Map<UUID, RaceManager.ActiveRun> courseRuns = raceManager.getActiveRuns(key);
                 if (courseRuns.size() == 1) {
+                    // Database: Abort solo run (async)
+                    if (plugin.getRunDao() != null) {
+                        plugin.getRunDao().abortRun(run.getRunId(), "Player left: " + reason);
+                    }
+                    
                     dropBlockManager.cancelAllDrops(key);
                     raceManager.removeActiveRun(key, playerUuid);
                     cleanedRuns = true;
@@ -113,8 +118,13 @@ public class PlayerLifecycleListener implements Listener {
         }
         
         // Remove active run for this player
-        if (raceManager.getActiveRun(key, playerUuid) != null) {
+        RaceManager.ActiveRun run = raceManager.getActiveRun(key, playerUuid);
+        if (run != null) {
             cleanedRuns = true;
+            // Database: Abort MP run (async)
+            if (plugin.getRunDao() != null) {
+                plugin.getRunDao().abortRun(run.getRunId(), "Player left: " + reason);
+            }
         }
         raceManager.removeActiveRun(key, playerUuid);
         
@@ -124,7 +134,13 @@ public class PlayerLifecycleListener implements Listener {
         // Check if lobby still exists (might have been deleted if empty)
         RaceManager.MultiLobbyState updatedLobby = raceManager.getMultiLobby(key);
         if (updatedLobby == null) {
-            // Lobby was deleted (became empty) - cancel any pending drops
+            // Lobby was deleted (became empty) - abort all runs and cancel any pending drops
+            if (plugin.getRunDao() != null) {
+                Map<UUID, RaceManager.ActiveRun> runs = raceManager.getActiveRuns(key);
+                for (RaceManager.ActiveRun r : runs.values()) {
+                    plugin.getRunDao().abortRun(r.getRunId(), "Lobby emptied: " + reason);
+                }
+            }
             dropBlockManager.cancelAllDrops(key);
             raceManager.clearActiveRuns(key);
             cleanedLobby = true;
@@ -145,7 +161,7 @@ public class PlayerLifecycleListener implements Listener {
         if (updatedLobby.getState() == RaceManager.MultiLobbyState.LobbyState.IN_PROGRESS) {
             Map<UUID, RaceManager.ActiveRun> activeRuns = raceManager.getActiveRuns(key);
             if (activeRuns.isEmpty()) {
-                // All racers gone, cleanup
+                // All racers gone, cleanup (runs already aborted above)
                 dropBlockManager.cancelAllDrops(key);
                 raceManager.clearActiveRuns(key);
                 raceManager.clearMultiLobby(key);

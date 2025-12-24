@@ -64,8 +64,14 @@ public class RaceDetectionTask extends BukkitRunnable {
                 if (startMode == Course.StartMode.CROSS_LINE && !run.isStarted() && startRegion != null) {
                     if (isInRegion(playerLoc, startRegion)) {
                         // Start the timer
-                        run.setStartMillis(System.currentTimeMillis());
+                        long startMillis = System.currentTimeMillis();
+                        run.setStartMillis(startMillis);
                         player.sendMessage("§aTimer started!");
+                        
+                        // Database: Mark run as started (async)
+                        if (plugin.getRunDao() != null) {
+                            plugin.getRunDao().markStarted(run.getRunId(), startMillis);
+                        }
                         
                         // Debug log
                         Map<String, Object> kv = new HashMap<>();
@@ -206,6 +212,11 @@ public class RaceDetectionTask extends BukkitRunnable {
             // Advance to next checkpoint
             run.setNextRequiredCheckpointIndex(nextRequired + 1);
             
+            // Database: Record checkpoint split (async)
+            if (plugin.getRunDao() != null) {
+                plugin.getRunDao().recordCheckpoint(run.getRunId(), nextRequired, splitTime);
+            }
+            
             // Debug log
             Map<String, Object> kv = new HashMap<>();
             kv.put("course", run.getCourseKey().getName());
@@ -278,10 +289,16 @@ public class RaceDetectionTask extends BukkitRunnable {
      * Finish a race
      */
     private void finishRace(Player player, RaceManager.ActiveRun run, RaceManager.CourseKey courseKey) {
-        run.setFinishMillis(System.currentTimeMillis());
+        long finishMillis = System.currentTimeMillis();
+        run.setFinishMillis(finishMillis);
         long elapsedMillis = run.getElapsedMillis();
         String timeStr = formatTime(elapsedMillis);
         player.sendMessage("§a§lFinished! Time: §f" + timeStr);
+        
+        // Database: Finish run (async)
+        if (plugin.getRunDao() != null) {
+            plugin.getRunDao().finishRun(run.getRunId(), finishMillis, elapsedMillis);
+        }
         
         // Debug log
         Map<String, Object> kv = new HashMap<>();

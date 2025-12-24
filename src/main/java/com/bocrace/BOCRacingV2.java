@@ -2,6 +2,9 @@ package com.bocrace;
 
 import com.bocrace.command.BOCRaceCommand;
 import com.bocrace.command.CourseCommandHandler;
+import com.bocrace.db.DatabaseManager;
+import com.bocrace.db.PlayerDao;
+import com.bocrace.db.RunDao;
 import com.bocrace.listener.CourseButtonListener;
 import com.bocrace.listener.PlayerLifecycleListener;
 import com.bocrace.listener.SetupListener;
@@ -22,6 +25,9 @@ public class BOCRacingV2 extends JavaPlugin {
     private DropBlockManager dropBlockManager;
     private BukkitTask detectionTask;
     private DebugLog debugLog;
+    private DatabaseManager databaseManager;
+    private RunDao runDao;
+    private PlayerDao playerDao;
 
     @Override
     public void onEnable() {
@@ -32,6 +38,18 @@ public class BOCRacingV2 extends JavaPlugin {
         
         // Initialize debug logging
         this.debugLog = new DebugLog(this);
+        
+        // Initialize database
+        this.databaseManager = new DatabaseManager(this);
+        try {
+            databaseManager.initialize();
+            this.runDao = new RunDao(this, databaseManager.getDataSource());
+            this.playerDao = new PlayerDao(this, databaseManager.getDataSource());
+        } catch (Exception e) {
+            getLogger().severe("Failed to initialize database: " + e.getMessage());
+            e.printStackTrace();
+            // Continue without database - plugin should still function
+        }
         
         // Initialize managers
         this.setupSessionManager = new SetupSessionManager();
@@ -86,6 +104,11 @@ public class BOCRacingV2 extends JavaPlugin {
             raceManager.clearAll();
         }
         
+        // Close database
+        if (databaseManager != null) {
+            databaseManager.close();
+        }
+        
         // Close debug log
         if (debugLog != null) {
             debugLog.close();
@@ -112,5 +135,17 @@ public class BOCRacingV2 extends JavaPlugin {
     
     public DebugLog getDebugLog() {
         return debugLog;
+    }
+    
+    public DatabaseManager getDatabaseManager() {
+        return databaseManager;
+    }
+    
+    public RunDao getRunDao() {
+        return runDao;
+    }
+    
+    public PlayerDao getPlayerDao() {
+        return playerDao;
     }
 }

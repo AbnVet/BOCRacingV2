@@ -281,6 +281,7 @@ public class RaceManager {
      * Active race run for a single racer
      */
     public static class ActiveRun {
+        private final String runId; // Database run ID
         private final CourseKey courseKey;
         private final UUID racerUuid;
         private final int spawnIndex;
@@ -295,7 +296,8 @@ public class RaceManager {
         private final java.util.Map<Integer, Long> checkpointSplitTimes; // checkpointIndex -> millis since start
         private long lastCheckpointMessageMillis; // Anti-spam cooldown for checkpoint messages
         
-        public ActiveRun(CourseKey courseKey, UUID racerUuid, int spawnIndex) {
+        public ActiveRun(String runId, CourseKey courseKey, UUID racerUuid, int spawnIndex) {
+            this.runId = runId;
             this.courseKey = courseKey;
             this.racerUuid = racerUuid;
             this.spawnIndex = spawnIndex;
@@ -305,6 +307,10 @@ public class RaceManager {
             this.passedCheckpoints = new java.util.HashSet<>();
             this.checkpointSplitTimes = new java.util.HashMap<>();
             this.lastCheckpointMessageMillis = 0;
+        }
+        
+        public String getRunId() {
+            return runId;
         }
         
         public CourseKey getCourseKey() {
@@ -402,11 +408,12 @@ public class RaceManager {
     }
     
     /**
-     * Create an active run
+     * Create an active run (with generated run ID)
      */
     public ActiveRun createActiveRun(CourseKey key, UUID racerUuid, int spawnIndex) {
+        String runId = java.util.UUID.randomUUID().toString();
         Map<UUID, ActiveRun> runs = activeRuns.computeIfAbsent(key, k -> new HashMap<>());
-        ActiveRun run = new ActiveRun(key, racerUuid, spawnIndex);
+        ActiveRun run = new ActiveRun(runId, key, racerUuid, spawnIndex);
         runs.put(racerUuid, run);
         return run;
     }
