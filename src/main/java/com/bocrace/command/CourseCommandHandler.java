@@ -318,6 +318,21 @@ public class CourseCommandHandler implements CommandExecutor, TabCompleter {
         sender.sendMessage("§7File: §f" + filePath);
         sender.sendMessage("");
         
+        // Settings
+        Course.CourseSettings settings = course.getSettings();
+        if (settings == null) {
+            settings = new Course.CourseSettings(); // Ensure defaults
+        }
+        sender.sendMessage("§6Settings:");
+        sender.sendMessage("  §7Start Mode: §f" + settings.getStartMode().name());
+        sender.sendMessage("  §7Countdown: §f" + settings.getCountdownSeconds() + " seconds");
+        sender.sendMessage("  §7Solo Cooldown: §f" + settings.getSoloCooldownSeconds() + " seconds");
+        if (settings.getStartMode() == Course.StartMode.DROP_START) {
+            sender.sendMessage("  §7Drop Radius: §f" + settings.getDrop().getRadius() + " blocks");
+            sender.sendMessage("  §7Drop Restore: §f" + settings.getDrop().getRestoreSeconds() + " seconds");
+        }
+        sender.sendMessage("");
+        
         // Checklist
         boolean startSet = course.getStartRegion() != null && 
                           course.getStartRegion().getMin() != null && 
@@ -358,12 +373,6 @@ public class CourseCommandHandler implements CommandExecutor, TabCompleter {
         }
         sender.sendMessage("  " + (finishSet && !finishWorldMissing ? "§a✓" : "§c✗") + " §7Finish Line: " + finishStatus);
         sender.sendMessage("  " + (course.getCheckpoints().size() > 0 ? "§a✓" : "§7○") + " §7Checkpoints: §f" + course.getCheckpoints().size());
-        
-        // SOLO rule warning
-        if (spawnCount != 1) {
-            sender.sendMessage("");
-            sender.sendMessage("§e⚠ SOLO courses require exactly 1 spawn. Current: " + spawnCount);
-        }
         
         // Validation status
         CourseValidator.ValidationResult validation = CourseValidator.validate(course);

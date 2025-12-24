@@ -49,16 +49,16 @@ public class CourseValidator {
             } else {
                 String lobbyWorldName = lobbyWorld.getName();
                 
-                // 2. Player spawns: must be exactly 1 for SOLO (only SOLO supported now)
+                // 2. Player spawns: must be at least 1
                 int spawnCount = course.getPlayerSpawns().size();
                 if (spawnCount == 0) {
-                    issues.add("Player spawns: 0 (SOLO requires exactly 1 spawn)");
-                } else if (spawnCount > 1) {
-                    issues.add("Player spawns: " + spawnCount + " (Multiplayer not implemented yet; SOLO requires exactly 1 spawn)");
+                    issues.add("Player spawns: 0 (at least 1 spawn required)");
                 } else {
-                    // Exactly 1 spawn - check if world is loaded
-                    if (course.getPlayerSpawns().get(0).getWorld() == null) {
-                        issues.add("Player spawn world is not loaded");
+                    // Check all spawn worlds are loaded
+                    for (int i = 0; i < spawnCount; i++) {
+                        if (course.getPlayerSpawns().get(i).getWorld() == null) {
+                            issues.add("Player spawn #" + (i + 1) + " world is not loaded");
+                        }
                     }
                 }
                 
@@ -104,7 +104,27 @@ public class CourseValidator {
                     }
                 }
                 
-                // 5. Checkpoints are optional - no validation needed
+                // 5. Checkpoints validation (if required)
+                Course.CourseSettings settings = course.getSettings();
+                if (settings != null && settings.getRules().isRequireCheckpoints()) {
+                    int checkpointCount = course.getCheckpoints().size();
+                    if (checkpointCount == 0) {
+                        issues.add("Checkpoints required but none set (settings.rules.requireCheckpoints=true)");
+                    } else {
+                        // Validate sequential indexing
+                        List<Integer> indices = new ArrayList<>();
+                        for (Course.CheckpointRegion cp : course.getCheckpoints()) {
+                            indices.add(cp.getCheckpointIndex());
+                        }
+                        indices.sort(Integer::compareTo);
+                        for (int i = 0; i < indices.size(); i++) {
+                            if (indices.get(i) != i + 1) {
+                                issues.add("Checkpoints must have sequential indexing starting at 1 (found: " + indices + ")");
+                                break;
+                            }
+                        }
+                    }
+                }
             }
         }
         

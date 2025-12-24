@@ -209,13 +209,23 @@ public class SetupListener implements Listener {
             BlockCoord cornerA = session.getPendingPoint1();
             BlockCoord cornerB = corner;
             
-            // Calculate min/max from corners
+            // BOAT: ground volume (2 blocks tall)
+            // AIR: full 3D cuboid
             int minX = Math.min(cornerA.getX(), cornerB.getX());
             int maxX = Math.max(cornerA.getX(), cornerB.getX());
-            int minY = Math.min(cornerA.getY(), cornerB.getY());
-            int maxY = minY + 1; // Fixed height of 2 blocks
+            int minY, maxY;
             int minZ = Math.min(cornerA.getZ(), cornerB.getZ());
             int maxZ = Math.max(cornerA.getZ(), cornerB.getZ());
+            
+            if (draft.getType() == com.bocrace.model.CourseType.BOAT) {
+                // BOAT: ground volume with fixed 2-block height
+                minY = Math.min(cornerA.getY(), cornerB.getY());
+                maxY = minY + 1; // Fixed height of 2 blocks
+            } else {
+                // AIR: full 3D cuboid
+                minY = Math.min(cornerA.getY(), cornerB.getY());
+                maxY = Math.max(cornerA.getY(), cornerB.getY());
+            }
             
             BlockCoord min = new BlockCoord(worldName, minX, minY, minZ);
             BlockCoord max = new BlockCoord(worldName, maxX, maxY, maxZ);
@@ -225,9 +235,10 @@ public class SetupListener implements Listener {
             session.clearPendingPoint1();
             sessionManager.clearSession(player);
             
-            // Send feedback
+            // Send feedback with region type info
+            String regionType = draft.getType() == com.bocrace.model.CourseType.BOAT ? "ground-volume" : "3D-cuboid";
             SetupFeedback.sendVolumeCompleteFeedback(player, draft.getName(), "Start", 
-                minX, minY, minZ, maxX, maxY, maxZ);
+                minX, minY, minZ, maxX, maxY, maxZ, regionType);
             
             return true;
         }
@@ -249,13 +260,23 @@ public class SetupListener implements Listener {
             BlockCoord cornerA = session.getPendingPoint1();
             BlockCoord cornerB = corner;
             
-            // Calculate min/max from corners
+            // BOAT: ground volume (2 blocks tall)
+            // AIR: full 3D cuboid
             int minX = Math.min(cornerA.getX(), cornerB.getX());
             int maxX = Math.max(cornerA.getX(), cornerB.getX());
-            int minY = Math.min(cornerA.getY(), cornerB.getY());
-            int maxY = minY + 1; // Fixed height of 2 blocks
+            int minY, maxY;
             int minZ = Math.min(cornerA.getZ(), cornerB.getZ());
             int maxZ = Math.max(cornerA.getZ(), cornerB.getZ());
+            
+            if (draft.getType() == com.bocrace.model.CourseType.BOAT) {
+                // BOAT: ground volume with fixed 2-block height
+                minY = Math.min(cornerA.getY(), cornerB.getY());
+                maxY = minY + 1; // Fixed height of 2 blocks
+            } else {
+                // AIR: full 3D cuboid
+                minY = Math.min(cornerA.getY(), cornerB.getY());
+                maxY = Math.max(cornerA.getY(), cornerB.getY());
+            }
             
             BlockCoord min = new BlockCoord(worldName, minX, minY, minZ);
             BlockCoord max = new BlockCoord(worldName, maxX, maxY, maxZ);
@@ -265,9 +286,10 @@ public class SetupListener implements Listener {
             session.clearPendingPoint1();
             sessionManager.clearSession(player);
             
-            // Send feedback
+            // Send feedback with region type info
+            String regionType = draft.getType() == com.bocrace.model.CourseType.BOAT ? "ground-volume" : "3D-cuboid";
             SetupFeedback.sendVolumeCompleteFeedback(player, draft.getName(), "Finish", 
-                minX, minY, minZ, maxX, maxY, maxZ);
+                minX, minY, minZ, maxX, maxY, maxZ, regionType);
             
             return true;
         }

@@ -5,16 +5,21 @@ import com.bocrace.command.CourseCommandHandler;
 import com.bocrace.listener.CourseButtonListener;
 import com.bocrace.listener.PlayerLifecycleListener;
 import com.bocrace.listener.SetupListener;
+import com.bocrace.runtime.DropBlockManager;
+import com.bocrace.runtime.RaceDetectionTask;
 import com.bocrace.runtime.RaceManager;
 import com.bocrace.setup.SetupSessionManager;
 import com.bocrace.storage.CourseManager;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.scheduler.BukkitTask;
 
 public class BOCRacingV2 extends JavaPlugin {
 
     private SetupSessionManager setupSessionManager;
     private CourseManager courseManager;
     private RaceManager raceManager;
+    private DropBlockManager dropBlockManager;
+    private BukkitTask detectionTask;
 
     @Override
     public void onEnable() {
@@ -24,6 +29,7 @@ public class BOCRacingV2 extends JavaPlugin {
         this.setupSessionManager = new SetupSessionManager();
         this.courseManager = new CourseManager(this);
         this.raceManager = new RaceManager();
+        this.dropBlockManager = new DropBlockManager(this);
         
         // Create command handler
         CourseCommandHandler commandHandler = new CourseCommandHandler(this, setupSessionManager, courseManager);
@@ -46,6 +52,10 @@ public class BOCRacingV2 extends JavaPlugin {
             new PlayerLifecycleListener(this, raceManager, courseManager),
             this
         );
+        
+        // Start race detection task (runs every 5 ticks)
+        RaceDetectionTask detectionTaskRunnable = new RaceDetectionTask(this, raceManager, courseManager);
+        this.detectionTask = detectionTaskRunnable.runTaskTimer(this, 0L, 5L);
     }
 
     @Override
@@ -55,7 +65,15 @@ public class BOCRacingV2 extends JavaPlugin {
             setupSessionManager.clearAll();
         }
         
-        // Clear all race state
+        // Cancel detection task
+        if (detectionTask != null) {
+            detectionTask.cancel();
+        }
+        
+        // Clear all race state and drop blocks
+        if (dropBlockManager != null) {
+            dropBlockManager.clearAll();
+        }
         if (raceManager != null) {
             raceManager.clearAll();
         }
@@ -73,5 +91,9 @@ public class BOCRacingV2 extends JavaPlugin {
     
     public RaceManager getRaceManager() {
         return raceManager;
+    }
+    
+    public DropBlockManager getDropBlockManager() {
+        return dropBlockManager;
     }
 }

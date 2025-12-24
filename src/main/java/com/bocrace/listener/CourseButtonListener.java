@@ -2,10 +2,12 @@ package com.bocrace.listener;
 
 import com.bocrace.BOCRacingV2;
 import com.bocrace.model.Course;
+import com.bocrace.runtime.DropBlockManager;
 import com.bocrace.runtime.RaceManager;
 import com.bocrace.storage.CourseManager;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -23,11 +25,13 @@ public class CourseButtonListener implements Listener {
     private final BOCRacingV2 plugin;
     private final CourseManager courseManager;
     private final RaceManager raceManager;
+    private final DropBlockManager dropBlockManager;
     
     public CourseButtonListener(BOCRacingV2 plugin, CourseManager courseManager, RaceManager raceManager) {
         this.plugin = plugin;
         this.courseManager = courseManager;
         this.raceManager = raceManager;
+        this.dropBlockManager = plugin.getDropBlockManager();
     }
     
     @EventHandler(priority = EventPriority.HIGH)
@@ -163,14 +167,50 @@ public class CourseButtonListener implements Listener {
             return;
         }
         
-        // Acquire lock for 120 seconds
-        raceManager.acquireSoloLock(key, player.getUniqueId(), 120);
+        // Acquire lock using course settings
+        int cooldownSeconds = course.getSettings().getSoloCooldownSeconds();
+        raceManager.acquireSoloLock(key, player.getUniqueId(), cooldownSeconds);
         
         // Teleport to solo spawn
         Location spawn = course.getPlayerSpawns().get(0);
         player.teleport(spawn);
         
-        player.sendMessage("§aSolo run started (stub).");
+        // Create active run
+        RaceManager.ActiveRun run = raceManager.createActiveRun(key, player.getUniqueId(), 0);
+        
+        // Start countdown
+        int countdownSeconds = course.getSettings().getCountdownSeconds();
+        Course.StartMode startMode = course.getSettings().getStartMode();
+        
+        new BukkitRunnable() {
+            int countdown = countdownSeconds;
+            
+            @Override
+            public void run() {
+                if (countdown > 0) {
+                    player.sendMessage("§6" + countdown + "...");
+                    player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_HAT, 1.0f, 1.0f);
+                    countdown--;
+                } else {
+                    // GO!
+                    player.sendMessage("§a§lGO!");
+                    player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.5f);
+                    
+                    if (startMode == Course.StartMode.CROSS_LINE) {
+                        // Don't start timer yet
+                        player.sendMessage("§7Cross the start line to begin!");
+                    } else if (startMode == Course.StartMode.DROP_START) {
+                        // Start timer immediately
+                        run.setStartMillis(System.currentTimeMillis());
+                        
+                        // Drop blocks
+                        dropBlockManager.dropBlocks(key, spawn, course.getSettings().getDrop());
+                    }
+                    
+                    cancel();
+                }
+            }
+        }.runTaskTimer(plugin, 0L, 20L); // 20 ticks = 1 second
     }
     
     private void handleSoloReturn(Player player, Course course) {
@@ -184,6 +224,11 @@ public class CourseButtonListener implements Listener {
         
         // Clear lock only if this player holds it
         if (raceManager.releaseSoloLock(key, player.getUniqueId())) {
+            // Clear active run
+            raceManager.removeActiveRun(key, player.getUniqueId());
+            // Cancel any pending block drops
+            dropBlockManager.cancelAllDrops(key);
+            
             player.teleport(course.getCourseLobbySpawn());
             player.sendMessage("§aReturned to course lobby.");
         } else {
@@ -324,38 +369,71 @@ public class CourseButtonListener implements Listener {
         // Set state to STARTING
         lobby.setState(RaceManager.MultiLobbyState.LobbyState.STARTING);
         
+        // Get all players (including leader if not in joinedPlayers)
+        Set<UUID> allRacers = new HashSet<>(lobby.getJoinedPlayers().keySet());
+        
+        // Create active runs for all racers
+        Map<UUID, RaceManager.ActiveRun> runs = new HashMap<>();
+        for (UUID uuid : allRacers) {
+            Player p = Bukkit.getPlayer(uuid);
+            if (p != null) {
+                Integer spawnIdx = lobby.getJoinedPlayers().get(uuid);
+                if (spawnIdx != null) {
+                    RaceManager.ActiveRun run = raceManager.createActiveRun(key, uuid, spawnIdx);
+                    runs.put(uuid, run);
+                }
+            }
+        }
+        
         // Countdown
+        int countdownSeconds = course.getSettings().getCountdownSeconds();
+        Course.StartMode startMode = course.getSettings().getStartMode();
+        
         new BukkitRunnable() {
-            int countdown = 5;
+            int countdown = countdownSeconds;
             
             @Override
             public void run() {
                 if (countdown > 0) {
                     // Send to all players in lobby
                     String message = "§6" + countdown + "...";
-                    for (UUID uuid : lobby.getJoinedPlayers().keySet()) {
+                    for (UUID uuid : allRacers) {
                         Player p = Bukkit.getPlayer(uuid);
                         if (p != null) {
                             p.sendMessage(message);
+                            p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_HAT, 1.0f, 1.0f);
                         }
                     }
                     countdown--;
                 } else {
                     // GO
                     lobby.setState(RaceManager.MultiLobbyState.LobbyState.IN_PROGRESS);
-                    String message = "§a§lGO!";
-                    for (UUID uuid : lobby.getJoinedPlayers().keySet()) {
-                        Player p = Bukkit.getPlayer(uuid);
-                        if (p != null) {
-                            p.sendMessage(message);
-                        }
-                    }
+                    String goMessage = "§a§lGO!";
                     
-                    // Stub message
-                    for (UUID uuid : lobby.getJoinedPlayers().keySet()) {
+                    for (UUID uuid : allRacers) {
                         Player p = Bukkit.getPlayer(uuid);
-                        if (p != null) {
-                            p.sendMessage("§aRace started (stub).");
+                        if (p == null) continue;
+                        
+                        p.sendMessage(goMessage);
+                        p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.5f);
+                        
+                        RaceManager.ActiveRun run = runs.get(uuid);
+                        if (run == null) continue;
+                        
+                        Integer spawnIdx = lobby.getJoinedPlayers().get(uuid);
+                        if (spawnIdx == null) continue;
+                        
+                        Location spawn = course.getPlayerSpawns().get(spawnIdx);
+                        
+                        if (startMode == Course.StartMode.CROSS_LINE) {
+                            // Don't start timer yet
+                            p.sendMessage("§7Cross the start line to begin!");
+                        } else if (startMode == Course.StartMode.DROP_START) {
+                            // Start timer immediately
+                            run.setStartMillis(System.currentTimeMillis());
+                            
+                            // Drop blocks under spawn
+                            dropBlockManager.dropBlocks(key, spawn, course.getSettings().getDrop());
                         }
                     }
                     
@@ -398,6 +476,9 @@ public class CourseButtonListener implements Listener {
             return;
         }
         
+        // Cancel any pending block drops
+        dropBlockManager.cancelAllDrops(key);
+        
         // Teleport all players (including leader)
         Set<UUID> allPlayers = new HashSet<>(lobby.getJoinedPlayers().keySet());
         if (lobby.getLeaderUuid() != null) {
@@ -412,7 +493,8 @@ public class CourseButtonListener implements Listener {
             }
         }
         
-        // Clear lobby
+        // Clear active runs and lobby
+        raceManager.clearActiveRuns(key);
         raceManager.clearMultiLobby(key);
     }
 }

@@ -78,6 +78,14 @@ public class SetupFeedback {
      */
     public static void sendVolumeCompleteFeedback(Player player, String courseName, String regionName, 
                                                   int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
+        sendVolumeCompleteFeedback(player, courseName, regionName, minX, minY, minZ, maxX, maxY, maxZ, null);
+    }
+    
+    /**
+     * Send feedback for volume region completion (start/finish) with region type
+     */
+    public static void sendVolumeCompleteFeedback(Player player, String courseName, String regionName, 
+                                                  int minX, int minY, int minZ, int maxX, int maxY, int maxZ, String regionType) {
         // Sound (slightly higher pitch for completion)
         Location soundLoc = new Location(player.getWorld(), (minX + maxX) / 2.0, (minY + maxY) / 2.0, (minZ + maxZ) / 2.0);
         player.playSound(soundLoc, Sound.ENTITY_PLAYER_LEVELUP, 0.7f, 1.3f);
@@ -85,7 +93,7 @@ public class SetupFeedback {
         // ActionBar message
         String minCoords = String.format("%d,%d,%d", minX, minY, minZ);
         String maxCoords = String.format("%d,%d,%d", maxX, maxY, maxZ);
-        Component message = Component.text()
+        net.kyori.adventure.text.ComponentBuilder<?, ?> messageBuilder = Component.text()
             .append(Component.text("✓✓ ", NamedTextColor.GREEN))
             .append(Component.text(courseName, NamedTextColor.YELLOW))
             .append(Component.text(" - ", NamedTextColor.GRAY))
@@ -93,10 +101,20 @@ public class SetupFeedback {
             .append(Component.text(" volume saved: ", NamedTextColor.GRAY))
             .append(Component.text("(" + minCoords + ")", NamedTextColor.WHITE))
             .append(Component.text(" to ", NamedTextColor.GRAY))
-            .append(Component.text("(" + maxCoords + ")", NamedTextColor.WHITE))
-            .append(Component.text(" height=2", NamedTextColor.GREEN))
-            .build();
-        player.sendActionBar(message);
+            .append(Component.text("(" + maxCoords + ")", NamedTextColor.WHITE));
+        
+        if (regionType != null) {
+            if (regionType.equals("ground-volume")) {
+                messageBuilder.append(Component.text(" (ground-volume, height=2)", NamedTextColor.GREEN));
+            } else if (regionType.equals("3D-cuboid")) {
+                int height = maxY - minY + 1;
+                messageBuilder.append(Component.text(" (3D-cuboid, height=" + height + ")", NamedTextColor.AQUA));
+            }
+        } else {
+            messageBuilder.append(Component.text(" (height=2)", NamedTextColor.GREEN));
+        }
+        
+        player.sendActionBar(messageBuilder.build());
         
         // Particles (more for completion)
         Location particleLoc = soundLoc.clone();

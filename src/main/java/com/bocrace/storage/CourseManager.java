@@ -11,8 +11,16 @@ import org.bukkit.World;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 
+import com.bocrace.model.Course.StartMode;
+import com.bocrace.model.Course.CourseSettings;
+import com.bocrace.model.Course.DropSettings;
+import com.bocrace.model.Course.RulesSettings;
+
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
+import java.io.PrintWriter;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -71,6 +79,19 @@ public class CourseManager {
         config.set("fileName", safeFileName);
         config.set("type", course.getType().name());
         // Note: status field is no longer written (tolerated on load for compatibility)
+        
+        // Settings (with defaults)
+        CourseSettings settings = course.getSettings();
+        if (settings == null) {
+            settings = new CourseSettings(); // Ensure defaults
+        }
+        config.set("settings.startMode", settings.getStartMode().name());
+        config.set("settings.countdownSeconds", settings.getCountdownSeconds());
+        config.set("settings.soloCooldownSeconds", settings.getSoloCooldownSeconds());
+        config.set("settings.drop.shape", settings.getDrop().getShape().name());
+        config.set("settings.drop.radius", settings.getDrop().getRadius());
+        config.set("settings.drop.restoreSeconds", settings.getDrop().getRestoreSeconds());
+        config.set("settings.rules.requireCheckpoints", settings.getRules().isRequireCheckpoints());
         
         // Course lobby spawn
         if (course.getCourseLobbySpawn() != null) {
@@ -207,7 +228,42 @@ public class CourseManager {
             config.set("mpLeaderCancelButton.z", btn.getZ());
         }
         
-        config.save(file);
+        // Save with comments
+        saveCourseWithComments(file, config, course.getType());
+    }
+    
+    /**
+     * Save course YAML with comment header
+     */
+    private void saveCourseWithComments(File file, FileConfiguration config, CourseType type) throws IOException {
+        // Write comment header first
+        try (PrintWriter writer = new PrintWriter(new FileWriter(file))) {
+            writer.println("# BOCRacingV2 Course Configuration");
+            writer.println("# Generated automatically - edit with care");
+            writer.println();
+            writer.println("# === START MODE SETTINGS ===");
+            writer.println("# startMode options:");
+            writer.println("#   CROSS_LINE = countdown runs; timer starts ONLY on crossing start trigger");
+            writer.println("#                 (boat start volume / air start volume)");
+            writer.println("#   DROP_START = countdown runs; timer starts at GO; blocks under racers drop briefly");
+            writer.println("#");
+            writer.println("# DROP_START shape options:");
+            writer.println("#   SINGLE = drop only the block directly under the racer's spawn");
+            writer.println("#   SQUARE = drop blocks in a square pattern (radius x radius) at spawn Y level");
+            writer.println("#   CIRCLE = drop blocks in a circular pattern (radius) at spawn Y level");
+            writer.println("# radius is only used for SQUARE and CIRCLE shapes");
+            writer.println();
+            writer.println("# === CHECKPOINTS ===");
+            writer.println("# Checkpoints are optional unless settings.rules.requireCheckpoints=true");
+            writer.println("# If required, you must have at least 1 checkpoint with sequential indexing");
+            writer.println();
+            writer.println("# === COURSE DATA ===");
+            writer.println();
+            
+            // Write the actual YAML content
+            String yamlContent = config.saveToString();
+            writer.print(yamlContent);
+        }
     }
     
     /**
@@ -228,6 +284,37 @@ public class CourseManager {
         course.setName(config.getString("displayName", courseName));
         course.setType(CourseType.valueOf(config.getString("type", type.name())));
         // Note: status field is tolerated on load for compatibility but not used
+        
+        // Settings (with defaults if missing)
+        CourseSettings settings = course.getSettings();
+        if (config.contains("settings.startMode")) {
+            try {
+                settings.setStartMode(StartMode.valueOf(config.getString("settings.startMode")));
+            } catch (IllegalArgumentException e) {
+                settings.setStartMode(StartMode.CROSS_LINE); // Default
+            }
+        }
+        settings.setCountdownSeconds(config.getInt("settings.countdownSeconds", 5));
+        settings.setSoloCooldownSeconds(config.getInt("settings.soloCooldownSeconds", 120));
+        if (config.contains("settings.drop.shape")) {
+            try {
+                settings.getDrop().setShape(Course.DropSettings.DropShape.valueOf(config.getString("settings.drop.shape")));
+            } catch (IllegalArgumentException e) {
+                settings.getDrop().setShape(Course.DropSettings.DropShape.SINGLE); // Default
+            }
+        }
+        if (config.contains("settings.drop.radius")) {
+            settings.getDrop().setRadius(config.getInt("settings.drop.radius", 1));
+        }
+        if (config.contains("settings.drop.restoreSeconds")) {
+            settings.getDrop().setRestoreSeconds(config.getInt("settings.drop.restoreSeconds", 10));
+        }
+        if (config.contains("settings.rules.requireCheckpoints")) {
+            settings.getRules().setRequireCheckpoints(config.getBoolean("settings.rules.requireCheckpoints", false));
+        }
+        
+        // If settings were missing, save back with defaults
+        boolean needsSave = !config.contains("settings.startMode");
         
         // Course lobby spawn
         if (config.contains("courseLobby.world")) {
@@ -465,13 +552,18 @@ public class CourseManager {
             course.setMpLeaderCancelButton(btn);
         }
         
-        // Auto-save after migration (once, to prevent loops)
-        if (startMigrated || finishMigrated) {
+        // Auto-save after migration or if settings were missing (once, to prevent loops)
+        if (startMigrated || finishMigrated || needsSave) {
             try {
                 saveCourse(course);
-                plugin.getLogger().info("Course '" + courseName + "' migrated from old start/finish format and auto-saved");
+                if (startMigrated || finishMigrated) {
+                    plugin.getLogger().info("Course '" + courseName + "' migrated from old start/finish format and auto-saved");
+                }
+                if (needsSave) {
+                    plugin.getLogger().info("Course '" + courseName + "' settings defaults applied and auto-saved");
+                }
             } catch (IOException e) {
-                plugin.getLogger().warning("Failed to auto-save migrated course '" + courseName + "': " + e.getMessage());
+                plugin.getLogger().warning("Failed to auto-save course '" + courseName + "': " + e.getMessage());
             }
         }
         

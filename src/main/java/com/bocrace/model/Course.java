@@ -10,8 +10,17 @@ import java.util.List;
  */
 public class Course {
     
+    /**
+     * Start mode for races
+     */
+    public enum StartMode {
+        CROSS_LINE,  // Timer starts only when crossing start trigger
+        DROP_START   // Timer starts at GO; blocks under racers drop briefly
+    }
+    
     private String name;
     private CourseType type;
+    private CourseSettings settings;
     
     // Single course lobby spawn (with yaw, pitch=0)
     private Location courseLobbySpawn;
@@ -42,6 +51,7 @@ public class Course {
     public Course() {
         this.playerSpawns = new ArrayList<>();
         this.checkpoints = new ArrayList<>();
+        this.settings = new CourseSettings(); // Default settings
     }
     
     public Course(String name, CourseType type) {
@@ -172,6 +182,119 @@ public class Course {
     
     public void setMpLeaderCancelButton(BlockCoord mpLeaderCancelButton) {
         this.mpLeaderCancelButton = mpLeaderCancelButton;
+    }
+    
+    public CourseSettings getSettings() {
+        return settings;
+    }
+    
+    public void setSettings(CourseSettings settings) {
+        this.settings = settings;
+    }
+    
+    /**
+     * Course settings with defaults
+     */
+    public static class CourseSettings {
+        private StartMode startMode = StartMode.CROSS_LINE;
+        private int countdownSeconds = 5;
+        private int soloCooldownSeconds = 120;
+        private DropSettings drop = new DropSettings();
+        private RulesSettings rules = new RulesSettings();
+        
+        public StartMode getStartMode() {
+            return startMode;
+        }
+        
+        public void setStartMode(StartMode startMode) {
+            this.startMode = startMode;
+        }
+        
+        public int getCountdownSeconds() {
+            return countdownSeconds;
+        }
+        
+        public void setCountdownSeconds(int countdownSeconds) {
+            this.countdownSeconds = countdownSeconds;
+        }
+        
+        public int getSoloCooldownSeconds() {
+            return soloCooldownSeconds;
+        }
+        
+        public void setSoloCooldownSeconds(int soloCooldownSeconds) {
+            this.soloCooldownSeconds = soloCooldownSeconds;
+        }
+        
+        public DropSettings getDrop() {
+            return drop;
+        }
+        
+        public void setDrop(DropSettings drop) {
+            this.drop = drop;
+        }
+        
+        public RulesSettings getRules() {
+            return rules;
+        }
+        
+        public void setRules(RulesSettings rules) {
+            this.rules = rules;
+        }
+    }
+    
+    /**
+     * Drop start settings
+     */
+    public static class DropSettings {
+        public enum DropShape {
+            SINGLE,
+            SQUARE,
+            CIRCLE
+        }
+        
+        private DropShape shape = DropShape.SINGLE;
+        private int radius = 1;
+        private int restoreSeconds = 10;
+        
+        public DropShape getShape() {
+            return shape;
+        }
+        
+        public void setShape(DropShape shape) {
+            this.shape = shape;
+        }
+        
+        public int getRadius() {
+            return radius;
+        }
+        
+        public void setRadius(int radius) {
+            this.radius = radius;
+        }
+        
+        public int getRestoreSeconds() {
+            return restoreSeconds;
+        }
+        
+        public void setRestoreSeconds(int restoreSeconds) {
+            this.restoreSeconds = restoreSeconds;
+        }
+    }
+    
+    /**
+     * Rules settings
+     */
+    public static class RulesSettings {
+        private boolean requireCheckpoints = false;
+        
+        public boolean isRequireCheckpoints() {
+            return requireCheckpoints;
+        }
+        
+        public void setRequireCheckpoints(boolean requireCheckpoints) {
+            this.requireCheckpoints = requireCheckpoints;
+        }
     }
     
     /**

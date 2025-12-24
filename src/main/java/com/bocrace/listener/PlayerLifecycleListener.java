@@ -2,6 +2,7 @@ package com.bocrace.listener;
 
 import com.bocrace.BOCRacingV2;
 import com.bocrace.model.Course;
+import com.bocrace.runtime.DropBlockManager;
 import com.bocrace.runtime.RaceManager;
 import com.bocrace.storage.CourseManager;
 import org.bukkit.Bukkit;
@@ -12,6 +13,8 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerKickEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 
+import java.util.ArrayList;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -22,11 +25,13 @@ public class PlayerLifecycleListener implements Listener {
     private final BOCRacingV2 plugin;
     private final RaceManager raceManager;
     private final CourseManager courseManager;
+    private final DropBlockManager dropBlockManager;
     
     public PlayerLifecycleListener(BOCRacingV2 plugin, RaceManager raceManager, CourseManager courseManager) {
         this.plugin = plugin;
         this.raceManager = raceManager;
         this.courseManager = courseManager;
+        this.dropBlockManager = plugin.getDropBlockManager();
     }
     
     @EventHandler(priority = EventPriority.MONITOR)
@@ -46,6 +51,20 @@ public class PlayerLifecycleListener implements Listener {
         // Clear solo locks held by this player
         raceManager.clearSoloLockIfHeldBy(playerUuid);
         
+        // Clear active solo runs for this player
+        for (RaceManager.CourseKey key : new ArrayList<>(raceManager.getActiveRunsMap().keySet())) {
+            RaceManager.ActiveRun run = raceManager.getActiveRun(key, playerUuid);
+            if (run != null) {
+                // Check if it's a solo run (only 1 player in course runs)
+                Map<UUID, RaceManager.ActiveRun> courseRuns = raceManager.getActiveRuns(key);
+                if (courseRuns.size() == 1) {
+                    dropBlockManager.cancelAllDrops(key);
+                    raceManager.removeActiveRun(key, playerUuid);
+                    break;
+                }
+            }
+        }
+        
         // Find lobby
         RaceManager.LobbyResult result = raceManager.findLobbyByPlayer(playerUuid);
         if (result == null) {
@@ -61,14 +80,31 @@ public class PlayerLifecycleListener implements Listener {
             playerCountBefore++; // Count leader if not in joinedPlayers
         }
         
+        // Remove active run for this player
+        raceManager.removeActiveRun(key, playerUuid);
+        
         // Remove player
         raceManager.removePlayerFromLobby(playerUuid, "Player left");
         
         // Check if lobby still exists (might have been deleted if empty)
         RaceManager.MultiLobbyState updatedLobby = raceManager.getMultiLobby(key);
         if (updatedLobby == null) {
-            // Lobby was deleted (became empty)
+            // Lobby was deleted (became empty) - cancel any pending drops
+            dropBlockManager.cancelAllDrops(key);
+            raceManager.clearActiveRuns(key);
             return;
+        }
+        
+        // Check if all racers finished or left - cleanup if needed (only if in progress)
+        if (updatedLobby.getState() == RaceManager.MultiLobbyState.LobbyState.IN_PROGRESS) {
+            Map<UUID, RaceManager.ActiveRun> activeRuns = raceManager.getActiveRuns(key);
+            if (activeRuns.isEmpty()) {
+                // All racers gone, cleanup
+                dropBlockManager.cancelAllDrops(key);
+                raceManager.clearActiveRuns(key);
+                raceManager.clearMultiLobby(key);
+                return;
+            }
         }
         
         // Notify remaining players
