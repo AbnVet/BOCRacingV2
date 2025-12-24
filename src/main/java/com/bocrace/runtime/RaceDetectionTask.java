@@ -70,7 +70,7 @@ public class RaceDetectionTask extends BukkitRunnable {
                         
                         // Database: Mark run as started (async)
                         if (plugin.getRunDao() != null) {
-                            plugin.getRunDao().markStarted(run.getRunId(), startMillis);
+                            plugin.getRunDao().markStarted(run.getRunId(), startMillis, courseKey.getName(), run.getRacerUuid());
                         }
                         
                         // Debug log
@@ -214,7 +214,7 @@ public class RaceDetectionTask extends BukkitRunnable {
             
             // Database: Record checkpoint split (async)
             if (plugin.getRunDao() != null) {
-                plugin.getRunDao().recordCheckpoint(run.getRunId(), nextRequired, splitTime);
+                plugin.getRunDao().recordCheckpoint(run.getRunId(), nextRequired, splitTime, run.getCourseKey().getName(), run.getRacerUuid());
             }
             
             // Debug log
@@ -297,7 +297,7 @@ public class RaceDetectionTask extends BukkitRunnable {
         
         // Database: Finish run (async)
         if (plugin.getRunDao() != null) {
-            plugin.getRunDao().finishRun(run.getRunId(), finishMillis, elapsedMillis);
+            plugin.getRunDao().finishRun(run.getRunId(), finishMillis, elapsedMillis, courseKey.getName(), run.getRacerUuid());
         }
         
         // Debug log

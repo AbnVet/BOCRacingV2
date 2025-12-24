@@ -1,6 +1,7 @@
 package com.bocrace.command;
 
 import com.bocrace.BOCRacingV2;
+import com.bocrace.db.QueryDao;
 import com.bocrace.model.CourseType;
 import com.bocrace.model.Course;
 import com.bocrace.setup.SetupSession;
@@ -8,6 +9,7 @@ import com.bocrace.setup.SetupSessionManager;
 import com.bocrace.storage.CourseManager;
 import com.bocrace.util.CourseValidator;
 import org.bukkit.Bukkit;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -16,9 +18,10 @@ import org.bukkit.entity.Player;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.text.SimpleDateFormat;
+import java.util.*;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -56,6 +59,10 @@ public class CourseCommandHandler implements CommandExecutor, TabCompleter {
                 return handleCancel(sender);
             case "validate":
                 return handleValidate(sender, args);
+            case "stats":
+                return handleStats(sender, args);
+            case "player":
+                return handlePlayer(sender, args);
             default:
                 sendHelp(sender);
                 return true;
@@ -69,6 +76,8 @@ public class CourseCommandHandler implements CommandExecutor, TabCompleter {
         sender.sendMessage("§a/bocrace status <name> §7- Show course setup progress");
         sender.sendMessage("§a/bocrace validate <name> §7- Check course validation");
         sender.sendMessage("§a/bocrace cancel §7- Cancel current armed action");
+        sender.sendMessage("§a/bocrace stats <course> §7- Show top times for a course");
+        sender.sendMessage("§a/bocrace player <name|uuid> [course] §7- Show player stats");
         sender.sendMessage("§7Actions: player_spawn, course_lobby, start, finish, checkpoint");
         sender.sendMessage("§7Note: Courses are saved immediately. Incomplete courses are blocked from use.");
     }
@@ -444,6 +453,191 @@ public class CourseCommandHandler implements CommandExecutor, TabCompleter {
         return true;
     }
     
+    private boolean handleStats(CommandSender sender, String[] args) {
+        if (!hasPermission(sender, "bocrace.admin")) {
+            sender.sendMessage("§cYou don't have permission to view stats!");
+            return true;
+        }
+        
+        if (plugin.getQueryDao() == null) {
+            sender.sendMessage("§cDatabase is not available.");
+            return true;
+        }
+        
+        if (args.length < 2) {
+            sender.sendMessage("§cUsage: /bocrace stats <course>");
+            return true;
+        }
+        
+        String courseName = args[1];
+        Course course = courseManager.findCourse(courseName);
+        if (course == null) {
+            sender.sendMessage("§cCourse not found: " + courseName);
+            return true;
+        }
+        
+        String courseKey = course.getName();
+        Future<List<QueryDao.TopTime>> future = plugin.getQueryDao().getTopTimes(courseKey, 10);
+        
+        // Wait for result (with timeout)
+        sender.sendMessage("§7Loading top times for §e" + courseKey + "§7...");
+        
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            try {
+                List<QueryDao.TopTime> topTimes = future.get(5, TimeUnit.SECONDS);
+                
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    sender.sendMessage("§6=== Top Times: " + courseKey + " ===");
+                    if (topTimes.isEmpty()) {
+                        sender.sendMessage("§7No finished runs yet.");
+                    } else {
+                        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm");
+                        for (int i = 0; i < topTimes.size(); i++) {
+                            QueryDao.TopTime entry = topTimes.get(i);
+                            String timeStr = formatTime(entry.getDurationMillis());
+                            String dateStr = dateFormat.format(new Date(entry.getFinishMillis()));
+                            sender.sendMessage("§e" + (i + 1) + ". §f" + entry.getPlayerName() + " §7- §a" + timeStr + " §7(" + dateStr + ")");
+                        }
+                    }
+                });
+            } catch (Exception e) {
+                plugin.getLogger().warning("Failed to get top times: " + e.getMessage());
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    sender.sendMessage("§cFailed to load stats.");
+                });
+            }
+        });
+        
+        return true;
+    }
+    
+    private boolean handlePlayer(CommandSender sender, String[] args) {
+        if (!hasPermission(sender, "bocrace.admin")) {
+            sender.sendMessage("§cYou don't have permission to view player stats!");
+            return true;
+        }
+        
+        if (plugin.getQueryDao() == null) {
+            sender.sendMessage("§cDatabase is not available.");
+            return true;
+        }
+        
+        if (args.length < 2) {
+            sender.sendMessage("§cUsage: /bocrace player <name|uuid> [course]");
+            return true;
+        }
+        
+        String identifier = args[1];
+        UUID playerUuid = null;
+        
+        // Try to resolve UUID
+        try {
+            playerUuid = UUID.fromString(identifier);
+        } catch (IllegalArgumentException e) {
+            // Try player name
+            OfflinePlayer player = Bukkit.getOfflinePlayer(identifier);
+            if (player.hasPlayedBefore() || player.isOnline()) {
+                playerUuid = player.getUniqueId();
+            } else {
+                sender.sendMessage("§cPlayer not found: " + identifier);
+                return true;
+            }
+        }
+        
+        if (args.length >= 3) {
+            // Show best time for specific course
+            String courseName = args[2];
+            Course course = courseManager.findCourse(courseName);
+            if (course == null) {
+                sender.sendMessage("§cCourse not found: " + courseName);
+                return true;
+            }
+            
+            String courseKey = course.getName();
+            Future<QueryDao.TopTime> future = plugin.getQueryDao().getPlayerBest(courseKey, playerUuid);
+            
+            sender.sendMessage("§7Loading best time for §e" + identifier + " §7on §e" + courseKey + "§7...");
+            
+            Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+                try {
+                    QueryDao.TopTime best = future.get(5, TimeUnit.SECONDS);
+                    
+                    Bukkit.getScheduler().runTask(plugin, () -> {
+                        sender.sendMessage("§6=== Best Time: " + identifier + " ===");
+                        sender.sendMessage("§7Course: §e" + courseKey);
+                        if (best == null) {
+                            sender.sendMessage("§7No finished runs yet.");
+                        } else {
+                            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm");
+                            String timeStr = formatTime(best.getDurationMillis());
+                            String dateStr = dateFormat.format(new Date(best.getFinishMillis()));
+                            sender.sendMessage("§aBest: §f" + timeStr + " §7(" + dateStr + ")");
+                        }
+                    });
+                } catch (Exception e) {
+                    plugin.getLogger().warning("Failed to get player best: " + e.getMessage());
+                    Bukkit.getScheduler().runTask(plugin, () -> {
+                        sender.sendMessage("§cFailed to load stats.");
+                    });
+                }
+            });
+        } else {
+            // Show recent runs
+            Future<List<QueryDao.PlayerRun>> future = plugin.getQueryDao().getPlayerRecentRuns(playerUuid, 10);
+            
+            sender.sendMessage("§7Loading recent runs for §e" + identifier + "§7...");
+            
+            Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+                try {
+                    List<QueryDao.PlayerRun> runs = future.get(5, TimeUnit.SECONDS);
+                    
+                    Bukkit.getScheduler().runTask(plugin, () -> {
+                        sender.sendMessage("§6=== Recent Runs: " + identifier + " ===");
+                        if (runs.isEmpty()) {
+                            sender.sendMessage("§7No runs found.");
+                        } else {
+                            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm");
+                            for (int i = 0; i < runs.size(); i++) {
+                                QueryDao.PlayerRun run = runs.get(i);
+                                String statusColor = run.getStatus().equals("FINISHED") ? "§a" : 
+                                                    run.getStatus().equals("ABORTED") ? "§c" : "§7";
+                                String statusStr = statusColor + run.getStatus();
+                                String courseKey = run.getCourseKey();
+                                
+                                if (run.getStatus().equals("FINISHED")) {
+                                    String timeStr = formatTime(run.getDurationMillis());
+                                    String dateStr = dateFormat.format(new Date(run.getFinishMillis()));
+                                    sender.sendMessage("§e" + (i + 1) + ". §f" + courseKey + " §7- §a" + timeStr + " §7(" + dateStr + ") " + statusStr);
+                                } else {
+                                    sender.sendMessage("§e" + (i + 1) + ". §f" + courseKey + " §7- " + statusStr);
+                                }
+                            }
+                        }
+                    });
+                } catch (Exception e) {
+                    plugin.getLogger().warning("Failed to get player recent runs: " + e.getMessage());
+                    Bukkit.getScheduler().runTask(plugin, () -> {
+                        sender.sendMessage("§cFailed to load stats.");
+                    });
+                }
+            });
+        }
+        
+        return true;
+    }
+    
+    /**
+     * Format milliseconds as mm:ss.SSS
+     */
+    private String formatTime(long millis) {
+        long totalSeconds = millis / 1000;
+        long minutes = totalSeconds / 60;
+        long seconds = totalSeconds % 60;
+        long milliseconds = millis % 1000;
+        
+        return String.format("%02d:%02d.%03d", minutes, seconds, milliseconds);
+    }
+    
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         // Check permission
@@ -452,7 +646,7 @@ public class CourseCommandHandler implements CommandExecutor, TabCompleter {
         }
         
         if (args.length == 1) {
-            return Arrays.asList("create", "setup", "status", "validate", "cancel").stream()
+            return Arrays.asList("create", "setup", "status", "validate", "cancel", "stats", "player").stream()
                 .filter(cmd -> cmd.startsWith(args[0].toLowerCase()))
                 .collect(Collectors.toList());
         }
@@ -464,9 +658,15 @@ public class CourseCommandHandler implements CommandExecutor, TabCompleter {
                     .filter(type -> type.startsWith(args[1].toLowerCase()))
                     .collect(Collectors.toList());
             } else if (subCommand.equals("setup") || subCommand.equals("status") || 
-                       subCommand.equals("validate")) {
+                       subCommand.equals("validate") || subCommand.equals("stats")) {
                 // Complete course names
                 return courseManager.listAllCourses().stream()
+                    .filter(name -> name.toLowerCase().startsWith(args[1].toLowerCase()))
+                    .collect(Collectors.toList());
+            } else if (subCommand.equals("player")) {
+                // Complete player names (only online players for simplicity)
+                return Bukkit.getOnlinePlayers().stream()
+                    .map(Player::getName)
                     .filter(name -> name.toLowerCase().startsWith(args[1].toLowerCase()))
                     .collect(Collectors.toList());
             }
@@ -479,6 +679,11 @@ public class CourseCommandHandler implements CommandExecutor, TabCompleter {
                     "solo_join_button", "solo_return_button", "mp_lobby", "mp_join_button",
                     "mp_leader_create_button", "mp_leader_start_button", "mp_leader_cancel_button").stream()
                     .filter(action -> action.startsWith(args[2].toLowerCase()))
+                    .collect(Collectors.toList());
+            } else if (subCommand.equals("player") && args.length == 3) {
+                // Complete course names for player command
+                return courseManager.listAllCourses().stream()
+                    .filter(name -> name.toLowerCase().startsWith(args[2].toLowerCase()))
                     .collect(Collectors.toList());
             }
         }

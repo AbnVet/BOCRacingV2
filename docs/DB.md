@@ -175,11 +175,48 @@ All database operations are executed asynchronously to avoid blocking the main s
 - Foreign key constraints ensure referential integrity
 - CASCADE DELETE on run_checkpoints ensures cleanup when runs are deleted
 
+## Phase 3: Ordered Execution & Query Support
+
+**DbDispatcher:**
+- Single-threaded executor ensures all database operations execute in order
+- Prevents race conditions and ensures write ordering (createRun always happens before markStarted/checkpoints/finish)
+- Safe shutdown on plugin disable (waits up to 5 seconds for pending tasks)
+
+**Write Ordering:**
+- `createRun` operations use CountDownLatch to track completion
+- Subsequent operations (`markStarted`, `recordCheckpoint`, `finishRun`, `abortRun`) wait for createRun to complete
+- If a later operation occurs before createRun completes, logs `[ERROR][DB_ORDER]` and retries once after short delay
+
+**SQLite Concurrency:**
+- WAL mode enabled (`PRAGMA journal_mode=WAL`) for better concurrent read performance
+- NORMAL synchronous mode (`PRAGMA synchronous=NORMAL`) balances safety and performance
+- Busy timeout set to 5000ms (`PRAGMA busy_timeout=5000`) to handle locked database gracefully
+
+**Query Support:**
+- `QueryDao` provides read-only queries executed via DbDispatcher
+- `getTopTimes(courseKey, limit)`: Returns top finished times for a course
+- `getPlayerBest(courseKey, playerUuid)`: Returns player's best time for a course
+- `getPlayerRecentRuns(playerUuid, limit)`: Returns player's recent runs across all courses
+
+**Admin Commands:**
+- `/bocrace stats <course>`: Displays top 10 times for a course
+- `/bocrace player <name|uuid> [course]`: Displays player stats
+  - Without course: Shows recent 10 runs across all courses
+  - With course: Shows player's best time for that course
+
+**Structured Debug Logging:**
+All database operations include structured key-value pairs in debug logs:
+- `runId`: Unique run identifier (UUID)
+- `courseKey`: Course name (stable identifier)
+- `playerUuid`: Player UUID
+- `raceId`: (Reserved for future MP race grouping)
+
 ## Debug Logging
 
 All database operations are logged to `debug.log` (if enabled) with `Tag.DATA`:
-- Run created/started/finished/aborted
-- Checkpoint recorded
-- Player upserted
+- Run created/started/finished/aborted (includes runId, courseKey, playerUuid)
+- Checkpoint recorded (includes runId, checkpointIndex, splitMillis)
+- Player upserted (includes uuid, lastName)
+- Query operations (includes query type, parameters, result count)
 
-Database errors are logged with `Tag.ERROR` and always appear in console.
+Database errors are logged with `Tag.ERROR` and always appear in console. Order violations are logged as `[ERROR][DB_ORDER]`.

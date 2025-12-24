@@ -3,7 +3,9 @@ package com.bocrace;
 import com.bocrace.command.BOCRaceCommand;
 import com.bocrace.command.CourseCommandHandler;
 import com.bocrace.db.DatabaseManager;
+import com.bocrace.db.DbDispatcher;
 import com.bocrace.db.PlayerDao;
+import com.bocrace.db.QueryDao;
 import com.bocrace.db.RunDao;
 import com.bocrace.listener.CourseButtonListener;
 import com.bocrace.listener.PlayerLifecycleListener;
@@ -26,8 +28,10 @@ public class BOCRacingV2 extends JavaPlugin {
     private BukkitTask detectionTask;
     private DebugLog debugLog;
     private DatabaseManager databaseManager;
+    private DbDispatcher dbDispatcher;
     private RunDao runDao;
     private PlayerDao playerDao;
+    private QueryDao queryDao;
 
     @Override
     public void onEnable() {
@@ -41,10 +45,12 @@ public class BOCRacingV2 extends JavaPlugin {
         
         // Initialize database
         this.databaseManager = new DatabaseManager(this);
+        this.dbDispatcher = new DbDispatcher(this);
         try {
             databaseManager.initialize();
-            this.runDao = new RunDao(this, databaseManager.getDataSource());
-            this.playerDao = new PlayerDao(this, databaseManager.getDataSource());
+            this.runDao = new RunDao(this, databaseManager.getDataSource(), dbDispatcher);
+            this.playerDao = new PlayerDao(this, databaseManager.getDataSource(), dbDispatcher);
+            this.queryDao = new QueryDao(this, databaseManager.getDataSource(), dbDispatcher);
         } catch (Exception e) {
             getLogger().severe("Failed to initialize database: " + e.getMessage());
             e.printStackTrace();
@@ -104,6 +110,11 @@ public class BOCRacingV2 extends JavaPlugin {
             raceManager.clearAll();
         }
         
+        // Shutdown database dispatcher
+        if (dbDispatcher != null) {
+            dbDispatcher.shutdown();
+        }
+        
         // Close database
         if (databaseManager != null) {
             databaseManager.close();
@@ -141,11 +152,19 @@ public class BOCRacingV2 extends JavaPlugin {
         return databaseManager;
     }
     
+    public DbDispatcher getDbDispatcher() {
+        return dbDispatcher;
+    }
+    
     public RunDao getRunDao() {
         return runDao;
     }
     
     public PlayerDao getPlayerDao() {
         return playerDao;
+    }
+    
+    public QueryDao getQueryDao() {
+        return queryDao;
     }
 }

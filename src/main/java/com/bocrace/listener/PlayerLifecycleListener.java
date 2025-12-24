@@ -76,7 +76,7 @@ public class PlayerLifecycleListener implements Listener {
                 if (courseRuns.size() == 1) {
                     // Database: Abort solo run (async)
                     if (plugin.getRunDao() != null) {
-                        plugin.getRunDao().abortRun(run.getRunId(), "Player left: " + reason);
+                        plugin.getRunDao().abortRun(run.getRunId(), "Player left: " + reason, key.getName(), playerUuid);
                     }
                     
                     dropBlockManager.cancelAllDrops(key);
@@ -123,7 +123,7 @@ public class PlayerLifecycleListener implements Listener {
             cleanedRuns = true;
             // Database: Abort MP run (async)
             if (plugin.getRunDao() != null) {
-                plugin.getRunDao().abortRun(run.getRunId(), "Player left: " + reason);
+                plugin.getRunDao().abortRun(run.getRunId(), "Player left: " + reason, key.getName(), playerUuid);
             }
         }
         raceManager.removeActiveRun(key, playerUuid);
@@ -138,7 +138,7 @@ public class PlayerLifecycleListener implements Listener {
             if (plugin.getRunDao() != null) {
                 Map<UUID, RaceManager.ActiveRun> runs = raceManager.getActiveRuns(key);
                 for (RaceManager.ActiveRun r : runs.values()) {
-                    plugin.getRunDao().abortRun(r.getRunId(), "Lobby emptied: " + reason);
+                    plugin.getRunDao().abortRun(r.getRunId(), "Lobby emptied: " + reason, key.getName(), r.getRacerUuid());
                 }
             }
             dropBlockManager.cancelAllDrops(key);

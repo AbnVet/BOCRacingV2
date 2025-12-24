@@ -249,7 +249,7 @@ public class CourseButtonListener implements Listener {
                         
                         // Database: Mark run as started (async)
                         if (plugin.getRunDao() != null) {
-                            plugin.getRunDao().markStarted(run.getRunId(), startMillis);
+                            plugin.getRunDao().markStarted(run.getRunId(), startMillis, course.getName(), player.getUniqueId());
                         }
                         
                         // Debug log (run start for DROP_START)
@@ -551,7 +551,7 @@ public class CourseButtonListener implements Listener {
                             
                             // Database: Mark run as started (async)
                             if (plugin.getRunDao() != null) {
-                                plugin.getRunDao().markStarted(run.getRunId(), startMillis);
+                                plugin.getRunDao().markStarted(run.getRunId(), startMillis, course.getName(), uuid);
                             }
                             
                             // Debug log (run start for DROP_START)
@@ -613,7 +613,7 @@ public class CourseButtonListener implements Listener {
         if (plugin.getRunDao() != null) {
             Map<UUID, RaceManager.ActiveRun> runs = raceManager.getActiveRuns(key);
             for (RaceManager.ActiveRun run : runs.values()) {
-                plugin.getRunDao().abortRun(run.getRunId(), "Leader cancelled race");
+                plugin.getRunDao().abortRun(run.getRunId(), "Leader cancelled race", course.getName(), run.getRacerUuid());
             }
         }
         

@@ -78,6 +78,11 @@ public class DatabaseManager {
         try {
             dataSource = new HikariDataSource(hikariConfig);
             
+            // Apply SQLite-specific PRAGMAs for concurrency
+            if ("SQLITE".equals(dbType)) {
+                configureSqlite();
+            }
+            
             // Run Flyway migrations
             runMigrations();
             
@@ -167,6 +172,35 @@ public class DatabaseManager {
             plugin.getLogger().info("Database connections closed");
         }
         initialized = false;
+    }
+    
+    /**
+     * Configure SQLite PRAGMAs for better concurrency
+     */
+    private void configureSqlite() {
+        try (var conn = dataSource.getConnection();
+             var stmt = conn.createStatement()) {
+            
+            // Enable Write-Ahead Logging (WAL) mode for better concurrency
+            stmt.execute("PRAGMA journal_mode=WAL");
+            
+            // Use NORMAL synchronous mode (safest that still allows WAL)
+            stmt.execute("PRAGMA synchronous=NORMAL");
+            
+            // Set busy timeout to 5 seconds (retry locked operations)
+            stmt.execute("PRAGMA busy_timeout=5000");
+            
+            Map<String, Object> kv = new HashMap<>();
+            kv.put("journal_mode", "WAL");
+            kv.put("synchronous", "NORMAL");
+            kv.put("busy_timeout", "5000");
+            plugin.getDebugLog().info(DebugLog.Tag.DATA, "DatabaseManager", "SQLite PRAGMAs configured", kv);
+            
+            plugin.getLogger().info("SQLite configured with WAL mode for better concurrency");
+        } catch (Exception e) {
+            plugin.getLogger().warning("Failed to configure SQLite PRAGMAs: " + e.getMessage());
+            plugin.getDebugLog().error("DatabaseManager", "SQLite PRAGMA configuration failed", e);
+        }
     }
     
     /**
