@@ -565,4 +565,70 @@ mpLeaderCancelButton:
 
 ---
 
+## 11. Debug Logging System
+
+**Configuration:** `plugins/BOCRacingV2/config.yml`
+
+**Config Keys:**
+```yaml
+debug:
+  enabled: false      # Master toggle: when false, no debug.log is created or written
+  maxFileSizeMB: 5    # Maximum size of debug.log before rotation occurs
+  maxFiles: 5         # Maximum number of rotated log files to keep (including debug.log)
+```
+
+**Log File Location:** `plugins/BOCRacingV2/debug.log`
+
+**Rotation Behavior:**
+- When `debug.log` exceeds `maxFileSizeMB`, rotation occurs:
+  - `debug.log` → `debug.1.log`
+  - `debug.1.log` → `debug.2.log`
+  - ... up to `debug.N.log` (where N = maxFiles)
+  - Files beyond `maxFiles` are deleted (oldest first)
+  - A fresh `debug.log` is created
+
+**Log Line Format:**
+```
+yyyy-MM-dd HH:mm:ss.SSS [BOCRacingV2] [LEVEL] [TAG] [Category] key=value key=value msg="..."
+```
+- **LEVEL:** DEBUG, INFO, WARN, ERROR
+- **TAG:** DATA, STATE, DETECT, RULE, CMD, PERM, PERF, ERROR
+- **Category:** CourseManager, RaceManager, RaceDetection, CourseButtonListener, SetupListener, DropBlockManager, PlayerLifecycleListener
+- **msg:** Quoted message string (quotes escaped as `\"`)
+
+**Tag Taxonomy:**
+- **DATA:** Course YAML save/load/migration operations
+- **STATE:** State changes (lobby created, run created, cleanup, drop blocks executed/restored)
+- **DETECT:** Detection events (timer start, checkpoint passed, finish recorded)
+- **RULE:** Rule enforcement (wrong checkpoint, finish blocked, solo lock blocked)
+- **CMD:** Command execution (not currently used)
+- **PERM:** Permission checks (not currently used)
+- **PERF:** Performance metrics (not currently used)
+- **ERROR:** Error conditions (always logs to console regardless of debug.enabled)
+
+**No Tick Spam Rule:**
+- **RaceDetectionTask loop:** Does NOT log per-tick scanning or per-player checks
+- **Only logs on discrete events:**
+  - When CROSS_LINE start triggers (RUN_START)
+  - When checkpoint passed/wrong (checkpoint detection)
+  - When finish accepted/blocked
+  - HUD updates are NOT logged (too frequent)
+
+**Logging Points:**
+1. **CourseManager:** Course save (DATA), course load (DATA), migration (DATA)
+2. **CourseButtonListener:** SOLO join success/blocked (STATE/RULE), SOLO return (STATE), MP join (STATE), MP start pressed (STATE), countdown start (STATE), MP cancel (STATE)
+3. **RaceDetectionTask:** RUN_START (DETECT), checkpoint passed/wrong (DETECT/RULE), finish blocked (RULE), RUN_FINISH (DETECT), cleanup (STATE)
+4. **DropBlockManager:** DROP_EXEC (STATE), DROP_RESTORE (STATE)
+5. **PlayerLifecycleListener:** PLAYER_LEAVE (STATE) with cleanup details
+
+**Error Logging:**
+- ERROR logs ALWAYS go to console (Bukkit logger) even if `debug.enabled=false`
+- ERROR logs also written to debug.log if `debug.enabled=true`
+
+**Thread Safety:**
+- All log writes are synchronized via `ReentrantLock` to prevent concurrent modification issues
+- Safe to call from async tasks and event handlers
+
+---
+
 *This report documents the current implementation as of the codebase state.*

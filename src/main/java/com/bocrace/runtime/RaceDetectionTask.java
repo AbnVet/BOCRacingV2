@@ -6,6 +6,7 @@ import com.bocrace.model.Course.VolumeRegion;
 import com.bocrace.model.Course.CheckpointRegion;
 import com.bocrace.model.Course.BlockCoord;
 import com.bocrace.storage.CourseManager;
+import com.bocrace.util.DebugLog;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
@@ -15,6 +16,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -64,6 +66,13 @@ public class RaceDetectionTask extends BukkitRunnable {
                         // Start the timer
                         run.setStartMillis(System.currentTimeMillis());
                         player.sendMessage("§aTimer started!");
+                        
+                        // Debug log
+                        Map<String, Object> kv = new HashMap<>();
+                        kv.put("course", courseKey.getName());
+                        kv.put("player", player.getName());
+                        kv.put("via", "CROSS_LINE");
+                        plugin.getDebugLog().info(DebugLog.Tag.DETECT, "RaceDetection", "RUN_START", kv);
                     }
                 }
                 
@@ -89,6 +98,14 @@ public class RaceDetectionTask extends BukkitRunnable {
                                 // Missing checkpoints
                                 int missing = run.getNextRequiredCheckpointIndex();
                                 player.sendMessage("§cMissing checkpoint #" + missing);
+                                
+                                // Debug log
+                                Map<String, Object> kv = new HashMap<>();
+                                kv.put("course", courseKey.getName());
+                                kv.put("player", player.getName());
+                                kv.put("missing", missing);
+                                kv.put("total", totalCheckpoints);
+                                plugin.getDebugLog().info(DebugLog.Tag.RULE, "RaceDetection", "Finish blocked (missing checkpoint)", kv);
                             }
                         } else {
                             // No checkpoints required, allow finish
@@ -189,6 +206,14 @@ public class RaceDetectionTask extends BukkitRunnable {
             // Advance to next checkpoint
             run.setNextRequiredCheckpointIndex(nextRequired + 1);
             
+            // Debug log
+            Map<String, Object> kv = new HashMap<>();
+            kv.put("course", run.getCourseKey().getName());
+            kv.put("player", player.getName());
+            kv.put("checkpointIndex", nextRequired);
+            kv.put("splitTimeMs", splitTime);
+            plugin.getDebugLog().info(DebugLog.Tag.DETECT, "RaceDetection", "Checkpoint passed", kv);
+            
             // Send message (with cooldown to avoid spam)
             long now = System.currentTimeMillis();
             if (now - run.getLastCheckpointMessageMillis() >= 1000) { // 1 second cooldown
@@ -213,6 +238,14 @@ public class RaceDetectionTask extends BukkitRunnable {
                     if (now - run.getLastCheckpointMessageMillis() >= 1000) {
                         player.sendMessage("§cWrong checkpoint. Next: #" + nextRequired);
                         run.setLastCheckpointMessageMillis(now);
+                        
+                        // Debug log
+                        Map<String, Object> kv = new HashMap<>();
+                        kv.put("course", run.getCourseKey().getName());
+                        kv.put("player", player.getName());
+                        kv.put("entered", cpIndex);
+                        kv.put("expected", nextRequired);
+                        plugin.getDebugLog().info(DebugLog.Tag.RULE, "RaceDetection", "Wrong checkpoint", kv);
                     }
                     break;
                 }
@@ -250,14 +283,29 @@ public class RaceDetectionTask extends BukkitRunnable {
         String timeStr = formatTime(elapsedMillis);
         player.sendMessage("§a§lFinished! Time: §f" + timeStr);
         
+        // Debug log
+        Map<String, Object> kv = new HashMap<>();
+        kv.put("course", courseKey.getName());
+        kv.put("player", player.getName());
+        kv.put("timeMs", elapsedMillis);
+        kv.put("formatted", timeStr);
+        plugin.getDebugLog().info(DebugLog.Tag.DETECT, "RaceDetection", "RUN_FINISH", kv);
+        
         // Check if solo run - clear lock and run (cleanup handled here)
         Map<UUID, RaceManager.ActiveRun> courseRuns = raceManager.getActiveRuns(courseKey);
-        if (courseRuns.size() == 1) {
-            // Solo run finished - clear lock and run
-            raceManager.releaseSoloLock(courseKey, run.getRacerUuid());
-            raceManager.removeActiveRun(courseKey, run.getRacerUuid());
-            // Note: drop blocks cleanup happens on return button or quit
-        } else {
+                        if (courseRuns.size() == 1) {
+                            // Solo run finished - clear lock and run
+                            raceManager.releaseSoloLock(courseKey, run.getRacerUuid());
+                            raceManager.removeActiveRun(courseKey, run.getRacerUuid());
+                            
+                            // Debug log cleanup
+                            Map<String, Object> cleanupKv = new HashMap<>();
+                            cleanupKv.put("course", courseKey.getName());
+                            cleanupKv.put("player", player.getName());
+                            cleanupKv.put("reason", "finished");
+                            plugin.getDebugLog().info(DebugLog.Tag.STATE, "RaceDetection", "RUN_CLEAR (SOLO finished)", cleanupKv);
+                            // Note: drop blocks cleanup happens on return button or quit
+                        } else {
             // MP run finished - check if all finished to cleanup lobby
             boolean allFinished = true;
             RaceManager.MultiLobbyState lobby = raceManager.getMultiLobby(courseKey);
@@ -268,12 +316,19 @@ public class RaceDetectionTask extends BukkitRunnable {
                         break;
                     }
                 }
-                if (allFinished) {
-                    // All racers finished - cleanup
-                    raceManager.clearActiveRuns(courseKey);
-                    raceManager.clearMultiLobby(courseKey);
-                    // Drop blocks cleanup happens via cancelAllDrops (no scheduled tasks left)
-                }
+                                if (allFinished) {
+                                    // All racers finished - cleanup
+                                    raceManager.clearActiveRuns(courseKey);
+                                    raceManager.clearMultiLobby(courseKey);
+                                    
+                                    // Debug log cleanup
+                                    Map<String, Object> cleanupKv = new HashMap<>();
+                                    cleanupKv.put("course", courseKey.getName());
+                                    cleanupKv.put("reason", "all_finished");
+                                    plugin.getDebugLog().info(DebugLog.Tag.STATE, "RaceDetection", "RUN_CLEAR (MP all finished)", cleanupKv);
+                                    plugin.getDebugLog().info(DebugLog.Tag.STATE, "RaceDetection", "LOBBY_CLEAR (all finished)", cleanupKv);
+                                    // Drop blocks cleanup happens via cancelAllDrops (no scheduled tasks left)
+                                }
             }
         }
     }

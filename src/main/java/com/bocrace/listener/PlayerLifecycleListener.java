@@ -5,6 +5,7 @@ import com.bocrace.model.Course;
 import com.bocrace.runtime.DropBlockManager;
 import com.bocrace.runtime.RaceManager;
 import com.bocrace.storage.CourseManager;
+import com.bocrace.util.DebugLog;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -14,6 +15,7 @@ import org.bukkit.event.player.PlayerKickEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -36,19 +38,33 @@ public class PlayerLifecycleListener implements Listener {
     
     @EventHandler(priority = EventPriority.MONITOR)
     public void onPlayerQuit(PlayerQuitEvent event) {
-        handlePlayerLeave(event.getPlayer());
+        handlePlayerLeave(event.getPlayer(), "quit");
     }
     
     @EventHandler(priority = EventPriority.MONITOR)
     public void onPlayerKick(PlayerKickEvent event) {
-        handlePlayerLeave(event.getPlayer());
+        handlePlayerLeave(event.getPlayer(), "kick");
     }
     
-    private void handlePlayerLeave(Player player) {
+    private void handlePlayerLeave(Player player, String reason) {
         UUID playerUuid = player.getUniqueId();
         String playerName = player.getName();
         
+        // Track what was cleaned up
+        boolean cleanedSoloLock = false;
+        boolean cleanedRuns = false;
+        boolean cleanedLobby = false;
+        String cleanedCourse = null;
+        
         // Clear solo locks held by this player
+        int soloLocksCleared = 0;
+        for (RaceManager.CourseKey key : new ArrayList<>(raceManager.getActiveRunsMap().keySet())) {
+            if (raceManager.getSoloLock(key) != null && raceManager.getSoloLock(key).getPlayerUuid().equals(playerUuid)) {
+                soloLocksCleared++;
+                cleanedSoloLock = true;
+                cleanedCourse = key.getName();
+            }
+        }
         raceManager.clearSoloLockIfHeldBy(playerUuid);
         
         // Clear active solo runs for this player
@@ -60,6 +76,8 @@ public class PlayerLifecycleListener implements Listener {
                 if (courseRuns.size() == 1) {
                     dropBlockManager.cancelAllDrops(key);
                     raceManager.removeActiveRun(key, playerUuid);
+                    cleanedRuns = true;
+                    cleanedCourse = key.getName();
                     break;
                 }
             }
@@ -68,11 +86,25 @@ public class PlayerLifecycleListener implements Listener {
         // Find lobby
         RaceManager.LobbyResult result = raceManager.findLobbyByPlayer(playerUuid);
         if (result == null) {
+            // Debug log cleanup (even if no lobby)
+            if (cleanedSoloLock || cleanedRuns) {
+                Map<String, Object> kv = new HashMap<>();
+                kv.put("player", playerName);
+                kv.put("reason", reason);
+                kv.put("cleanedSoloLock", cleanedSoloLock);
+                kv.put("cleanedRuns", cleanedRuns);
+                kv.put("cleanedLobby", false);
+                if (cleanedCourse != null) {
+                    kv.put("course", cleanedCourse);
+                }
+                plugin.getDebugLog().info(DebugLog.Tag.STATE, "PlayerLifecycleListener", "PLAYER_LEAVE", kv);
+            }
             return; // Not in any lobby
         }
         
         RaceManager.CourseKey key = result.getCourseKey();
         RaceManager.MultiLobbyState lobby = result.getLobby();
+        cleanedCourse = key.getName();
         
         boolean wasLeader = lobby.getLeaderUuid() != null && lobby.getLeaderUuid().equals(playerUuid);
         int playerCountBefore = lobby.getJoinedPlayers().size();
@@ -81,6 +113,9 @@ public class PlayerLifecycleListener implements Listener {
         }
         
         // Remove active run for this player
+        if (raceManager.getActiveRun(key, playerUuid) != null) {
+            cleanedRuns = true;
+        }
         raceManager.removeActiveRun(key, playerUuid);
         
         // Remove player
@@ -92,6 +127,17 @@ public class PlayerLifecycleListener implements Listener {
             // Lobby was deleted (became empty) - cancel any pending drops
             dropBlockManager.cancelAllDrops(key);
             raceManager.clearActiveRuns(key);
+            cleanedLobby = true;
+            
+            // Debug log cleanup
+            Map<String, Object> kv = new HashMap<>();
+            kv.put("player", playerName);
+            kv.put("reason", reason);
+            kv.put("cleanedSoloLock", cleanedSoloLock);
+            kv.put("cleanedRuns", cleanedRuns);
+            kv.put("cleanedLobby", cleanedLobby);
+            kv.put("course", cleanedCourse);
+            plugin.getDebugLog().info(DebugLog.Tag.STATE, "PlayerLifecycleListener", "PLAYER_LEAVE", kv);
             return;
         }
         
@@ -103,9 +149,30 @@ public class PlayerLifecycleListener implements Listener {
                 dropBlockManager.cancelAllDrops(key);
                 raceManager.clearActiveRuns(key);
                 raceManager.clearMultiLobby(key);
+                cleanedLobby = true;
+                
+                // Debug log cleanup
+                Map<String, Object> kv = new HashMap<>();
+                kv.put("player", playerName);
+                kv.put("reason", reason);
+                kv.put("cleanedSoloLock", cleanedSoloLock);
+                kv.put("cleanedRuns", cleanedRuns);
+                kv.put("cleanedLobby", cleanedLobby);
+                kv.put("course", cleanedCourse);
+                plugin.getDebugLog().info(DebugLog.Tag.STATE, "PlayerLifecycleListener", "PLAYER_LEAVE", kv);
                 return;
             }
         }
+        
+        // Debug log cleanup (partial cleanup, lobby still exists)
+        Map<String, Object> kv = new HashMap<>();
+        kv.put("player", playerName);
+        kv.put("reason", reason);
+        kv.put("cleanedSoloLock", cleanedSoloLock);
+        kv.put("cleanedRuns", cleanedRuns);
+        kv.put("cleanedLobby", false);
+        kv.put("course", cleanedCourse);
+        plugin.getDebugLog().info(DebugLog.Tag.STATE, "PlayerLifecycleListener", "PLAYER_LEAVE", kv);
         
         // Notify remaining players
         int playerCountAfter = updatedLobby.getJoinedPlayers().size();

@@ -1,0 +1,22 @@
+# BOCRacingV2 Configuration
+# Generated automatically - edit with care
+
+# === DEBUG LOGGING ===
+# Debug logging writes detailed structured logs to plugins/BOCRacingV2/debug.log
+# 
+# enabled: Set to true to enable debug logging. When false, no debug.log file is created or written.
+#          ERROR logs always go to console regardless of this setting.
+#
+# maxFileSizeMB: Maximum size of debug.log in MB before rotation occurs.
+#                When exceeded, debug.log rotates to debug.1.log, debug.1.log -> debug.2.log, etc.
+#
+# maxFiles: Maximum number of rotated log files to keep (including debug.log).
+#           Oldest files beyond this limit are deleted during rotation.
+#
+# Log file location: plugins/BOCRacingV2/debug.log
+# Rotated files: plugins/BOCRacingV2/debug.1.log, debug.2.log, etc.
+#
+debug:
+  enabled: false
+  maxFileSizeMB: 5
+  maxFiles: 5

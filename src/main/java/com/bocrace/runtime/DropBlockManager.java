@@ -1,6 +1,8 @@
 package com.bocrace.runtime;
 
+import com.bocrace.BOCRacingV2;
 import com.bocrace.model.Course;
+import com.bocrace.util.DebugLog;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -110,6 +112,16 @@ public class DropBlockManager {
         // Store the task
         DropTask task = new DropTask(world.getName(), blocksToRestore, taskId);
         activeDropTasks.computeIfAbsent(courseKey, k -> new ArrayList<>()).add(task);
+        
+        // Debug log (if plugin is BOCRacingV2 instance)
+        if (plugin instanceof BOCRacingV2) {
+            Map<String, Object> kv = new HashMap<>();
+            kv.put("course", courseKey.getName());
+            kv.put("shape", dropSettings.getShape().name());
+            kv.put("radius", dropSettings.getRadius());
+            kv.put("restoreSeconds", dropSettings.getRestoreSeconds());
+            ((BOCRacingV2) plugin).getDebugLog().info(DebugLog.Tag.STATE, "DropBlockManager", "DROP_EXEC", kv);
+        }
     }
     
     /**
@@ -134,6 +146,13 @@ public class DropBlockManager {
                 // Restore using BlockState
                 state.update(true, false);
             }
+        }
+        
+        // Debug log restore (if plugin is BOCRacingV2 instance)
+        if (plugin instanceof BOCRacingV2) {
+            Map<String, Object> kv = new HashMap<>();
+            kv.put("course", courseKey.getName());
+            ((BOCRacingV2) plugin).getDebugLog().info(DebugLog.Tag.STATE, "DropBlockManager", "DROP_RESTORE", kv);
         }
         
         // Remove from active tasks

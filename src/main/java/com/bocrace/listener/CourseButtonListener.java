@@ -5,6 +5,7 @@ import com.bocrace.model.Course;
 import com.bocrace.runtime.DropBlockManager;
 import com.bocrace.runtime.RaceManager;
 import com.bocrace.storage.CourseManager;
+import com.bocrace.util.DebugLog;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Sound;
@@ -164,6 +165,12 @@ public class CourseButtonListener implements Listener {
         if (lock != null && !lock.isExpired()) {
             long remaining = lock.getRemainingSeconds();
             player.sendMessage("§cCourse in use. Try again in " + remaining + " seconds.");
+            // Debug log
+            Map<String, Object> kv = new HashMap<>();
+            kv.put("course", course.getName());
+            kv.put("player", player.getName());
+            kv.put("remaining", remaining);
+            plugin.getDebugLog().info(DebugLog.Tag.RULE, "CourseButtonListener", "SOLO join blocked by lock", kv);
             return;
         }
         
@@ -171,16 +178,41 @@ public class CourseButtonListener implements Listener {
         int cooldownSeconds = course.getSettings().getSoloCooldownSeconds();
         raceManager.acquireSoloLock(key, player.getUniqueId(), cooldownSeconds);
         
+        // Debug log
+        Map<String, Object> kv = new HashMap<>();
+        kv.put("course", course.getName());
+        kv.put("player", player.getName());
+        kv.put("lockSeconds", cooldownSeconds);
+        plugin.getDebugLog().info(DebugLog.Tag.STATE, "CourseButtonListener", "SOLO join success", kv);
+        
         // Teleport to solo spawn
         Location spawn = course.getPlayerSpawns().get(0);
         player.teleport(spawn);
         
+        // Get settings before creating run
+        int countdownSeconds = course.getSettings().getCountdownSeconds();
+        Course.StartMode startMode = course.getSettings().getStartMode();
+        
         // Create active run
         RaceManager.ActiveRun run = raceManager.createActiveRun(key, player.getUniqueId(), 0);
         
+        // Debug log run creation
+        Map<String, Object> runKv = new HashMap<>();
+        runKv.put("course", course.getName());
+        runKv.put("player", player.getName());
+        runKv.put("spawnIndex", 0);
+        runKv.put("startMode", startMode.name());
+        plugin.getDebugLog().info(DebugLog.Tag.STATE, "CourseButtonListener", "RUN_CREATE (SOLO)", runKv);
+        
         // Start countdown
-        int countdownSeconds = course.getSettings().getCountdownSeconds();
-        Course.StartMode startMode = course.getSettings().getStartMode();
+        
+        // Debug log countdown start
+        Map<String, Object> countdownKv = new HashMap<>();
+        countdownKv.put("course", course.getName());
+        countdownKv.put("player", player.getName());
+        countdownKv.put("mode", startMode.name());
+        countdownKv.put("countdownSeconds", countdownSeconds);
+        plugin.getDebugLog().info(DebugLog.Tag.STATE, "CourseButtonListener", "SOLO countdown start", countdownKv);
         
         new BukkitRunnable() {
             int countdown = countdownSeconds;
@@ -202,6 +234,13 @@ public class CourseButtonListener implements Listener {
                     } else if (startMode == Course.StartMode.DROP_START) {
                         // Start timer immediately
                         run.setStartMillis(System.currentTimeMillis());
+                        
+                        // Debug log (run start for DROP_START)
+                        Map<String, Object> startKv = new HashMap<>();
+                        startKv.put("course", course.getName());
+                        startKv.put("player", player.getName());
+                        startKv.put("via", "DROP_GO");
+                        plugin.getDebugLog().info(DebugLog.Tag.DETECT, "CourseButtonListener", "RUN_START (SOLO)", startKv);
                         
                         // Drop blocks
                         dropBlockManager.dropBlocks(key, spawn, course.getSettings().getDrop());
@@ -231,6 +270,12 @@ public class CourseButtonListener implements Listener {
             
             player.teleport(course.getCourseLobbySpawn());
             player.sendMessage("§aReturned to course lobby.");
+            
+            // Debug log
+            Map<String, Object> kv = new HashMap<>();
+            kv.put("course", course.getName());
+            kv.put("player", player.getName());
+            plugin.getDebugLog().info(DebugLog.Tag.STATE, "CourseButtonListener", "SOLO return", kv);
         } else {
             player.sendMessage("§cYou don't have an active solo run.");
         }
@@ -245,7 +290,16 @@ public class CourseButtonListener implements Listener {
         }
         
         RaceManager.CourseKey key = new RaceManager.CourseKey(course.getType().name(), course.getName());
+        RaceManager.MultiLobbyState existingLobby = raceManager.getMultiLobby(key);
         RaceManager.MultiLobbyState lobby = raceManager.getOrCreateMultiLobby(key);
+        
+        // Debug log lobby creation (only if it was just created)
+        if (existingLobby == null) {
+            Map<String, Object> lobbyKv = new HashMap<>();
+            lobbyKv.put("course", course.getName());
+            lobbyKv.put("leader", lobby.getLeaderUuid() != null ? Bukkit.getOfflinePlayer(lobby.getLeaderUuid()).getName() : "none");
+            plugin.getDebugLog().info(DebugLog.Tag.STATE, "CourseButtonListener", "LOBBY_CREATE", lobbyKv);
+        }
         
         // Prevent join if race already started
         if (lobby.getState() == RaceManager.MultiLobbyState.LobbyState.IN_PROGRESS) {
@@ -300,6 +354,14 @@ public class CourseButtonListener implements Listener {
                 p.sendMessage("§7" + player.getName() + " joined (" + totalPlayers + "/" + spawnCount + ").");
             }
         }
+        
+        // Debug log
+        Map<String, Object> kv = new HashMap<>();
+        kv.put("course", course.getName());
+        kv.put("player", player.getName());
+        kv.put("spawnIndex", spawnIndex);
+        kv.put("leader", lobby.getLeaderUuid() != null && lobby.getLeaderUuid().equals(player.getUniqueId()));
+        plugin.getDebugLog().info(DebugLog.Tag.STATE, "CourseButtonListener", "MP join", kv);
     }
     
     private void handleMpLeaderCreate(Player player, Course course) {
@@ -369,6 +431,19 @@ public class CourseButtonListener implements Listener {
         // Set state to STARTING
         lobby.setState(RaceManager.MultiLobbyState.LobbyState.STARTING);
         
+        // Debug log start pressed
+        Map<String, Object> startKv = new HashMap<>();
+        startKv.put("course", course.getName());
+        startKv.put("player", player.getName());
+        startKv.put("isLeader", true);
+        startKv.put("joined", lobby.getJoinedPlayers().size());
+        startKv.put("spawns", spawnCount);
+        plugin.getDebugLog().info(DebugLog.Tag.STATE, "CourseButtonListener", "MP start pressed", startKv);
+        
+        // Get settings before creating runs
+        int countdownSeconds = course.getSettings().getCountdownSeconds();
+        Course.StartMode startMode = course.getSettings().getStartMode();
+        
         // Get all players (including leader if not in joinedPlayers)
         Set<UUID> allRacers = new HashSet<>(lobby.getJoinedPlayers().keySet());
         
@@ -381,13 +456,26 @@ public class CourseButtonListener implements Listener {
                 if (spawnIdx != null) {
                     RaceManager.ActiveRun run = raceManager.createActiveRun(key, uuid, spawnIdx);
                     runs.put(uuid, run);
+                    
+                    // Debug log run creation
+                    Map<String, Object> runKv = new HashMap<>();
+                    runKv.put("course", course.getName());
+                    runKv.put("player", p.getName());
+                    runKv.put("spawnIndex", spawnIdx);
+                    runKv.put("startMode", startMode.name());
+                    plugin.getDebugLog().info(DebugLog.Tag.STATE, "CourseButtonListener", "RUN_CREATE (MP)", runKv);
                 }
             }
         }
         
         // Countdown
-        int countdownSeconds = course.getSettings().getCountdownSeconds();
-        Course.StartMode startMode = course.getSettings().getStartMode();
+        
+        // Debug log countdown start
+        Map<String, Object> countdownKv = new HashMap<>();
+        countdownKv.put("course", course.getName());
+        countdownKv.put("mode", startMode.name());
+        countdownKv.put("countdownSeconds", countdownSeconds);
+        plugin.getDebugLog().info(DebugLog.Tag.STATE, "CourseButtonListener", "MP countdown start", countdownKv);
         
         new BukkitRunnable() {
             int countdown = countdownSeconds;
@@ -432,6 +520,13 @@ public class CourseButtonListener implements Listener {
                             // Start timer immediately
                             run.setStartMillis(System.currentTimeMillis());
                             
+                            // Debug log (run start for DROP_START)
+                            Map<String, Object> startKv = new HashMap<>();
+                            startKv.put("course", course.getName());
+                            startKv.put("player", p.getName());
+                            startKv.put("via", "DROP_GO");
+                            plugin.getDebugLog().info(DebugLog.Tag.DETECT, "CourseButtonListener", "RUN_START (MP)", startKv);
+                            
                             // Drop blocks under spawn
                             dropBlockManager.dropBlocks(key, spawn, course.getSettings().getDrop());
                         }
@@ -460,7 +555,8 @@ public class CourseButtonListener implements Listener {
         
         // Check if leader (OP override allowed)
         boolean isLeader = lobby.getLeaderUuid() != null && lobby.getLeaderUuid().equals(player.getUniqueId());
-        if (!isLeader && !isAdmin(player)) {
+        boolean opOverride = !isLeader && isAdmin(player);
+        if (!isLeader && !opOverride) {
             player.sendMessage("§cOnly the race leader can cancel the race.");
             return;
         }
@@ -479,6 +575,21 @@ public class CourseButtonListener implements Listener {
         // Cancel any pending block drops
         dropBlockManager.cancelAllDrops(key);
         
+        // Clear active runs and lobby
+        raceManager.clearActiveRuns(key);
+        raceManager.clearMultiLobby(key);
+        
+        // Debug log
+        Map<String, Object> kv = new HashMap<>();
+        kv.put("course", course.getName());
+        kv.put("player", player.getName());
+        kv.put("isLeader", isLeader);
+        kv.put("opOverride", opOverride);
+        plugin.getDebugLog().info(DebugLog.Tag.STATE, "CourseButtonListener", "MP cancel", kv);
+        kv.put("reason", "cancel");
+        plugin.getDebugLog().info(DebugLog.Tag.STATE, "CourseButtonListener", "RUN_CLEAR (MP cancel)", kv);
+        plugin.getDebugLog().info(DebugLog.Tag.STATE, "CourseButtonListener", "LOBBY_CLEAR (MP cancel)", kv);
+        
         // Teleport all players (including leader)
         Set<UUID> allPlayers = new HashSet<>(lobby.getJoinedPlayers().keySet());
         if (lobby.getLeaderUuid() != null) {
@@ -492,9 +603,5 @@ public class CourseButtonListener implements Listener {
                 p.sendMessage("§cRace cancelled.");
             }
         }
-        
-        // Clear active runs and lobby
-        raceManager.clearActiveRuns(key);
-        raceManager.clearMultiLobby(key);
     }
 }

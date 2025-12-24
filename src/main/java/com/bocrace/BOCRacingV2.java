@@ -10,6 +10,7 @@ import com.bocrace.runtime.RaceDetectionTask;
 import com.bocrace.runtime.RaceManager;
 import com.bocrace.setup.SetupSessionManager;
 import com.bocrace.storage.CourseManager;
+import com.bocrace.util.DebugLog;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
 
@@ -20,10 +21,17 @@ public class BOCRacingV2 extends JavaPlugin {
     private RaceManager raceManager;
     private DropBlockManager dropBlockManager;
     private BukkitTask detectionTask;
+    private DebugLog debugLog;
 
     @Override
     public void onEnable() {
         getLogger().info("BOCRacingV2 v" + getDescription().getVersion() + " has been enabled!");
+        
+        // Save default config
+        saveDefaultConfig();
+        
+        // Initialize debug logging
+        this.debugLog = new DebugLog(this);
         
         // Initialize managers
         this.setupSessionManager = new SetupSessionManager();
@@ -78,6 +86,11 @@ public class BOCRacingV2 extends JavaPlugin {
             raceManager.clearAll();
         }
         
+        // Close debug log
+        if (debugLog != null) {
+            debugLog.close();
+        }
+        
         getLogger().info("BOCRacingV2 has been disabled!");
     }
     
@@ -95,5 +108,9 @@ public class BOCRacingV2 extends JavaPlugin {
     
     public DropBlockManager getDropBlockManager() {
         return dropBlockManager;
+    }
+    
+    public DebugLog getDebugLog() {
+        return debugLog;
     }
 }

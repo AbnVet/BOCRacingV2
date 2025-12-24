@@ -22,7 +22,11 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+
+import com.bocrace.util.DebugLog;
 
 /**
  * Manages course persistence as YAML files
@@ -230,6 +234,14 @@ public class CourseManager {
         
         // Save with comments
         saveCourseWithComments(file, config, course.getType());
+        
+        // Debug log
+        Map<String, Object> kv = new HashMap<>();
+        kv.put("course", course.getName());
+        kv.put("displayName", course.getName());
+        kv.put("file", file.getName());
+        kv.put("type", course.getType().name());
+        plugin.getDebugLog().info(DebugLog.Tag.DATA, "CourseManager", "Course saved", kv);
     }
     
     /**
@@ -284,6 +296,13 @@ public class CourseManager {
         course.setName(config.getString("displayName", courseName));
         course.setType(CourseType.valueOf(config.getString("type", type.name())));
         // Note: status field is tolerated on load for compatibility but not used
+        
+        // Debug log (before migration checks)
+        Map<String, Object> kv = new HashMap<>();
+        kv.put("course", courseName);
+        kv.put("file", file.getName());
+        kv.put("type", type.name());
+        plugin.getDebugLog().info(DebugLog.Tag.DATA, "CourseManager", "Course loaded", kv);
         
         // Settings (with defaults if missing)
         CourseSettings settings = course.getSettings();
@@ -554,18 +573,32 @@ public class CourseManager {
         
         // Auto-save after migration or if settings were missing (once, to prevent loops)
         if (startMigrated || finishMigrated || needsSave) {
-            try {
-                saveCourse(course);
-                if (startMigrated || finishMigrated) {
-                    plugin.getLogger().info("Course '" + courseName + "' migrated from old start/finish format and auto-saved");
-                }
-                if (needsSave) {
-                    plugin.getLogger().info("Course '" + courseName + "' settings defaults applied and auto-saved");
-                }
-            } catch (IOException e) {
-                plugin.getLogger().warning("Failed to auto-save course '" + courseName + "': " + e.getMessage());
-            }
-        }
+                    try {
+                            saveCourse(course);
+                            if (startMigrated || finishMigrated) {
+                                plugin.getLogger().info("Course '" + courseName + "' migrated from old start/finish format and auto-saved");
+                                // Debug log migration
+                                Map<String, Object> migrateKv = new HashMap<>();
+                                migrateKv.put("course", courseName);
+                                migrateKv.put("file", file.getName());
+                                migrateKv.put("oldFormat", "point1/point2");
+                                migrateKv.put("newFormat", "min/max");
+                                plugin.getDebugLog().info(DebugLog.Tag.DATA, "CourseManager", "Course migrated (start/finish)", migrateKv);
+                            }
+                            if (needsSave) {
+                                plugin.getLogger().info("Course '" + courseName + "' settings defaults applied and auto-saved");
+                                // Debug log settings migration
+                                Map<String, Object> settingsKv = new HashMap<>();
+                                settingsKv.put("course", courseName);
+                                settingsKv.put("file", file.getName());
+                                settingsKv.put("oldFormat", "missing");
+                                settingsKv.put("newFormat", "defaults");
+                                plugin.getDebugLog().info(DebugLog.Tag.DATA, "CourseManager", "Course migrated (settings)", settingsKv);
+                            }
+                        } catch (IOException e) {
+                            plugin.getLogger().warning("Failed to auto-save course '" + courseName + "': " + e.getMessage());
+                        }
+                    }
         
         return course;
     }
