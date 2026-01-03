@@ -394,6 +394,19 @@ public class RaceManager {
     }
     
     /**
+     * Find an active run by player UUID (searches all courses)
+     */
+    public ActiveRun getActiveRun(UUID playerUuid) {
+        for (Map<UUID, ActiveRun> runs : activeRuns.values()) {
+            ActiveRun run = runs.get(playerUuid);
+            if (run != null) {
+                return run;
+            }
+        }
+        return null;
+    }
+    
+    /**
      * Get all active runs for a course
      */
     public Map<UUID, ActiveRun> getActiveRuns(CourseKey key) {

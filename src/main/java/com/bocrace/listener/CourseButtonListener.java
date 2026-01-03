@@ -5,6 +5,7 @@ import com.bocrace.model.Course;
 import com.bocrace.runtime.DropBlockManager;
 import com.bocrace.runtime.RaceManager;
 import com.bocrace.storage.CourseManager;
+import com.bocrace.util.CourseValidator;
 import com.bocrace.util.DebugLog;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -38,6 +39,17 @@ public class CourseButtonListener implements Listener {
     @EventHandler(priority = EventPriority.HIGH)
     public void onPlayerInteract(PlayerInteractEvent event) {
         Player player = event.getPlayer();
+        
+        // CRITICAL: Ignore if player is in setup mode (prevents button clicks during setup)
+        // SetupListener runs at HIGHEST priority, so this is a safety check
+        if (plugin.getSetupSessionManager().hasSession(player)) {
+            return; // SetupListener will handle this click
+        }
+        
+        // CRITICAL: Cancel event if it was already handled by SetupListener
+        if (event.isCancelled()) {
+            return;
+        }
         
         // Only handle right-click on blocks, main hand
         if (event.getAction() != org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK) {
@@ -152,6 +164,17 @@ public class CourseButtonListener implements Listener {
     }
     
     private void handleSoloJoin(Player player, Course course) {
+        // CRITICAL: Validate course is complete before allowing gameplay
+        CourseValidator.ValidationResult validation = CourseValidator.validate(course);
+        if (!validation.isOk()) {
+            player.sendMessage("§cCourse is not ready for racing!");
+            if (player.isOp() || player.hasPermission("bocrace.admin")) {
+                player.sendMessage("§7Issues: " + String.join(", ", validation.getIssues()));
+                player.sendMessage("§7Run /bocrace status " + course.getName() + " to see details");
+            }
+            return;
+        }
+        
         // Readiness check: exactly 1 spawn AND soloJoinButton exists
         int spawnCount = course.getPlayerSpawns().size();
         if (spawnCount != 1 || course.getSoloJoinButton() == null) {
@@ -160,7 +183,11 @@ public class CourseButtonListener implements Listener {
         }
         
         RaceManager.CourseKey key = new RaceManager.CourseKey(course.getType().name(), course.getName());
+        
+        // Check if course is in use (lock OR active run)
         RaceManager.SoloLock lock = raceManager.getSoloLock(key);
+        Map<UUID, RaceManager.ActiveRun> activeRuns = raceManager.getActiveRuns(key);
+        boolean hasActiveRun = !activeRuns.isEmpty();
         
         if (lock != null && !lock.isExpired()) {
             long remaining = lock.getRemainingSeconds();
@@ -174,6 +201,16 @@ public class CourseButtonListener implements Listener {
             return;
         }
         
+        if (hasActiveRun) {
+            player.sendMessage("§cSomeone is currently racing this course. Please wait for them to finish.");
+            // Debug log
+            Map<String, Object> kv = new HashMap<>();
+            kv.put("course", course.getName());
+            kv.put("player", player.getName());
+            plugin.getDebugLog().info(DebugLog.Tag.RULE, "CourseButtonListener", "SOLO join blocked by active run", kv);
+            return;
+        }
+        
         // Acquire lock using course settings
         int cooldownSeconds = course.getSettings().getSoloCooldownSeconds();
         raceManager.acquireSoloLock(key, player.getUniqueId(), cooldownSeconds);
@@ -184,10 +221,6 @@ public class CourseButtonListener implements Listener {
         kv.put("player", player.getName());
         kv.put("lockSeconds", cooldownSeconds);
         plugin.getDebugLog().info(DebugLog.Tag.STATE, "CourseButtonListener", "SOLO join success", kv);
-        
-        // Teleport to solo spawn
-        Location spawn = course.getPlayerSpawns().get(0);
-        player.teleport(spawn);
         
         // Get settings before creating run
         int countdownSeconds = course.getSettings().getCountdownSeconds();
@@ -215,7 +248,25 @@ public class CourseButtonListener implements Listener {
         runKv.put("runId", run.getRunId());
         plugin.getDebugLog().info(DebugLog.Tag.STATE, "CourseButtonListener", "RUN_CREATE (SOLO)", runKv);
         
-        // Start countdown
+        // Get spawn location (used for both boat and air)
+        Location spawn = course.getPlayerSpawns().get(0);
+        
+        // IMMEDIATELY teleport player to spawn and place in boat (if BOAT course)
+        if (course.getType() == com.bocrace.model.CourseType.BOAT) {
+            // Teleport player first
+            player.teleport(spawn);
+            // Then spawn boat and place player in it
+            org.bukkit.entity.Boat boat = plugin.getBoatManager().spawnRaceBoat(player, spawn, course, run.getRunId());
+            if (boat == null) {
+                player.sendMessage("§cFailed to spawn boat! Please contact an admin.");
+                raceManager.removeActiveRun(key, player.getUniqueId());
+                raceManager.releaseSoloLock(key, player.getUniqueId());
+                return;
+            }
+        } else {
+            // AIR courses: just teleport to spawn
+            player.teleport(spawn);
+        }
         
         // Debug log countdown start
         Map<String, Object> countdownKv = new HashMap<>();
@@ -225,6 +276,7 @@ public class CourseButtonListener implements Listener {
         countdownKv.put("countdownSeconds", countdownSeconds);
         plugin.getDebugLog().info(DebugLog.Tag.STATE, "CourseButtonListener", "SOLO countdown start", countdownKv);
         
+        // Start countdown (player is already in position)
         new BukkitRunnable() {
             int countdown = countdownSeconds;
             
@@ -240,7 +292,7 @@ public class CourseButtonListener implements Listener {
                     player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.5f);
                     
                     if (startMode == Course.StartMode.CROSS_LINE) {
-                        // Don't start timer yet
+                        // Don't start timer yet - wait for start line crossing
                         player.sendMessage("§7Cross the start line to begin!");
                     } else if (startMode == Course.StartMode.DROP_START) {
                         // Start timer immediately
@@ -259,8 +311,10 @@ public class CourseButtonListener implements Listener {
                         startKv.put("via", "DROP_GO");
                         plugin.getDebugLog().info(DebugLog.Tag.DETECT, "CourseButtonListener", "RUN_START (SOLO)", startKv);
                         
-                        // Drop blocks
-                        dropBlockManager.dropBlocks(key, spawn, course.getSettings().getDrop());
+                        // Drop blocks (only for boat courses, at spawn location)
+                        if (course.getType() == com.bocrace.model.CourseType.BOAT) {
+                            dropBlockManager.dropBlocks(key, spawn, course.getSettings().getDrop());
+                        }
                     }
                     
                     cancel();
@@ -284,6 +338,14 @@ public class CourseButtonListener implements Listener {
             raceManager.removeActiveRun(key, player.getUniqueId());
             // Cancel any pending block drops
             dropBlockManager.cancelAllDrops(key);
+            
+            // Remove boat if player is in one
+            if (course.getType() == com.bocrace.model.CourseType.BOAT) {
+                org.bukkit.entity.Boat boat = plugin.getBoatManager().findRaceBoatByPlayer(player.getUniqueId());
+                if (boat != null) {
+                    plugin.getBoatManager().removeRaceBoat(boat, "player_returned");
+                }
+            }
             
             player.teleport(course.getCourseLobbySpawn());
             player.sendMessage("§aReturned to course lobby.");
@@ -522,16 +584,13 @@ public class CourseButtonListener implements Listener {
                     }
                     countdown--;
                 } else {
-                    // GO
+                    // GO - Spawn boats and start race
                     lobby.setState(RaceManager.MultiLobbyState.LobbyState.IN_PROGRESS);
                     String goMessage = "§a§lGO!";
                     
                     for (UUID uuid : allRacers) {
                         Player p = Bukkit.getPlayer(uuid);
                         if (p == null) continue;
-                        
-                        p.sendMessage(goMessage);
-                        p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.5f);
                         
                         RaceManager.ActiveRun run = runs.get(uuid);
                         if (run == null) continue;
@@ -540,6 +599,22 @@ public class CourseButtonListener implements Listener {
                         if (spawnIdx == null) continue;
                         
                         Location spawn = course.getPlayerSpawns().get(spawnIdx);
+                        
+                        // Spawn boat for BOAT courses
+                        if (course.getType() == com.bocrace.model.CourseType.BOAT) {
+                            org.bukkit.entity.Boat boat = plugin.getBoatManager().spawnRaceBoat(p, spawn, course, run.getRunId());
+                            if (boat == null) {
+                                p.sendMessage("§cFailed to spawn boat! Please contact an admin.");
+                                raceManager.removeActiveRun(key, uuid);
+                                continue;
+                            }
+                        } else {
+                            // AIR courses: just teleport to spawn
+                            p.teleport(spawn);
+                        }
+                        
+                        p.sendMessage(goMessage);
+                        p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.5f);
                         
                         if (startMode == Course.StartMode.CROSS_LINE) {
                             // Don't start timer yet
@@ -561,8 +636,10 @@ public class CourseButtonListener implements Listener {
                             startKv.put("via", "DROP_GO");
                             plugin.getDebugLog().info(DebugLog.Tag.DETECT, "CourseButtonListener", "RUN_START (MP)", startKv);
                             
-                            // Drop blocks under spawn
-                            dropBlockManager.dropBlocks(key, spawn, course.getSettings().getDrop());
+                            // Drop blocks under spawn (only for BOAT courses)
+                            if (course.getType() == com.bocrace.model.CourseType.BOAT) {
+                                dropBlockManager.dropBlocks(key, spawn, course.getSettings().getDrop());
+                            }
                         }
                     }
                     
@@ -610,10 +687,20 @@ public class CourseButtonListener implements Listener {
         dropBlockManager.cancelAllDrops(key);
         
         // Database: Abort all runs in lobby (async)
+        Map<UUID, RaceManager.ActiveRun> runs = raceManager.getActiveRuns(key);
         if (plugin.getRunDao() != null) {
-            Map<UUID, RaceManager.ActiveRun> runs = raceManager.getActiveRuns(key);
             for (RaceManager.ActiveRun run : runs.values()) {
                 plugin.getRunDao().abortRun(run.getRunId(), "Leader cancelled race", course.getName(), run.getRacerUuid());
+            }
+        }
+        
+        // Remove boats for all racers (for BOAT courses)
+        if (course.getType() == com.bocrace.model.CourseType.BOAT) {
+            for (RaceManager.ActiveRun run : runs.values()) {
+                org.bukkit.entity.Boat boat = plugin.getBoatManager().findRaceBoatByPlayer(run.getRacerUuid());
+                if (boat != null) {
+                    plugin.getBoatManager().removeRaceBoat(boat, "race_cancelled");
+                }
             }
         }
         

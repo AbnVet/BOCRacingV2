@@ -40,12 +40,24 @@ public class DatabaseManager {
         String dbType = config.getString("database.type", "SQLITE").toUpperCase();
         
         HikariConfig hikariConfig = new HikariConfig();
-        hikariConfig.setMaximumPoolSize(config.getInt("database.pool.maxConnections", 10));
-        hikariConfig.setMinimumIdle(1);
-        hikariConfig.setConnectionTimeout(30000);
-        hikariConfig.setIdleTimeout(600000);
-        hikariConfig.setMaxLifetime(1800000);
-        hikariConfig.setLeakDetectionThreshold(60000);
+        
+        // Determine pool size (SQLite has lower limit)
+        int maxPoolSize;
+        if ("MYSQL".equals(dbType)) {
+            maxPoolSize = config.getInt("database.pool.maxConnections", 10);
+        } else {
+            // SQLite: limit to 5 connections max (SQLite doesn't handle many connections well)
+            maxPoolSize = Math.min(config.getInt("database.pool.maxConnections", 10), 5);
+        }
+        
+        hikariConfig.setMaximumPoolSize(maxPoolSize);
+        // Fixed-size pool: minimumIdle = maximumPoolSize (best practice for Paper plugins)
+        hikariConfig.setMinimumIdle(maxPoolSize);
+        hikariConfig.setConnectionTimeout(30000); // 30 seconds
+        hikariConfig.setIdleTimeout(600000); // 10 minutes
+        hikariConfig.setMaxLifetime(1800000); // 30 minutes (slightly less than typical DB timeout)
+        hikariConfig.setLeakDetectionThreshold(60000); // 60 seconds (for development/testing)
+        // Connection validation (JDBC4 isValid() is used by default)
         
         String jdbcUrl;
         if ("MYSQL".equals(dbType)) {
@@ -71,8 +83,6 @@ public class DatabaseManager {
             jdbcUrl = "jdbc:sqlite:" + dbFile.getAbsolutePath();
             hikariConfig.setJdbcUrl(jdbcUrl);
             hikariConfig.setDriverClassName("org.sqlite.JDBC");
-            // SQLite-specific pool settings
-            hikariConfig.setMaximumPoolSize(Math.min(config.getInt("database.pool.maxConnections", 10), 5));
         }
         
         try {
@@ -106,7 +116,11 @@ public class DatabaseManager {
      */
     private void runMigrations() {
         try {
-            FluentConfiguration flywayConfig = Flyway.configure()
+            // CRITICAL: Use plugin's classloader so Flyway can find migration files in JAR
+            // According to Flyway docs for Paper plugins, configure() should take the classloader
+            ClassLoader pluginClassLoader = plugin.getClass().getClassLoader();
+            
+            FluentConfiguration flywayConfig = Flyway.configure(pluginClassLoader)
                     .dataSource(dataSource)
                     .locations("classpath:db/migration")
                     .baselineOnMigrate(true);

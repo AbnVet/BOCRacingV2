@@ -25,6 +25,7 @@ public class BOCRacingV2 extends JavaPlugin {
     private CourseManager courseManager;
     private RaceManager raceManager;
     private DropBlockManager dropBlockManager;
+    private com.bocrace.util.BoatManager boatManager;
     private BukkitTask detectionTask;
     private DebugLog debugLog;
     private DatabaseManager databaseManager;
@@ -62,6 +63,7 @@ public class BOCRacingV2 extends JavaPlugin {
         this.courseManager = new CourseManager(this);
         this.raceManager = new RaceManager();
         this.dropBlockManager = new DropBlockManager(this);
+        this.boatManager = new com.bocrace.util.BoatManager(this);
         
         // Create command handler
         CourseCommandHandler commandHandler = new CourseCommandHandler(this, setupSessionManager, courseManager);
@@ -82,6 +84,10 @@ public class BOCRacingV2 extends JavaPlugin {
         );
         getServer().getPluginManager().registerEvents(
             new PlayerLifecycleListener(this, raceManager, courseManager),
+            this
+        );
+        getServer().getPluginManager().registerEvents(
+            new com.bocrace.listener.BoatDisqualificationListener(this, raceManager, courseManager, boatManager),
             this
         );
         
@@ -105,6 +111,9 @@ public class BOCRacingV2 extends JavaPlugin {
         // Clear all race state and drop blocks
         if (dropBlockManager != null) {
             dropBlockManager.clearAll();
+        }
+        if (boatManager != null) {
+            boatManager.cleanupAllRaceBoats();
         }
         if (raceManager != null) {
             raceManager.clearAll();
@@ -142,6 +151,10 @@ public class BOCRacingV2 extends JavaPlugin {
     
     public DropBlockManager getDropBlockManager() {
         return dropBlockManager;
+    }
+    
+    public com.bocrace.util.BoatManager getBoatManager() {
+        return boatManager;
     }
     
     public DebugLog getDebugLog() {

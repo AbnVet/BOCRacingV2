@@ -65,6 +65,7 @@ public class SetupSession {
         MP_JOIN_BUTTON,
         MP_LEADER_CREATE_BUTTON,
         MP_LEADER_START_BUTTON,
-        MP_LEADER_CANCEL_BUTTON
+        MP_LEADER_CANCEL_BUTTON,
+        SET_BOAT_TYPE
     }
 }

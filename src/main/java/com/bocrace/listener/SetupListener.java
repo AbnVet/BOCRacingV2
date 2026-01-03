@@ -33,7 +33,7 @@ public class SetupListener implements Listener {
         this.courseManager = courseManager;
     }
     
-    @EventHandler(priority = EventPriority.HIGH)
+    @EventHandler(priority = EventPriority.HIGHEST) // Run BEFORE CourseButtonListener
     public void onPlayerInteract(PlayerInteractEvent event) {
         Player player = event.getPlayer();
         
@@ -135,6 +135,11 @@ public class SetupListener implements Listener {
                 success = handleMpLeaderCancelButton(player, course, blockLoc, worldName);
                 shouldClearSession = true;
                 break;
+                
+            case SET_BOAT_TYPE:
+                // This is handled via command, not click
+                success = false;
+                break;
         }
         
         if (success) {
@@ -151,6 +156,9 @@ public class SetupListener implements Listener {
             if (shouldClearSession) {
                 sessionManager.clearSession(player);
             }
+            
+            // CRITICAL: Cancel event to prevent CourseButtonListener from processing it
+            event.setCancelled(true);
         }
     }
     
@@ -165,11 +173,20 @@ public class SetupListener implements Listener {
             0.0f // Force pitch = 0
         );
         
-        draft.addPlayerSpawn(spawnLoc);
-        int spawnNumber = draft.getPlayerSpawns().size();
-        
-        // Send feedback
-        SetupFeedback.sendSingleClickFeedback(player, draft.getName(), "Player Spawn #" + spawnNumber, spawnLoc);
+        // For SOLO courses: if there's already a spawn, replace it instead of adding another
+        Course.Mode currentMode = draft.getModeOrDefault();
+        if (currentMode == Course.Mode.SOLO && draft.getPlayerSpawns().size() >= 1) {
+            // SOLO course: replace existing spawn
+            draft.getPlayerSpawns().clear();
+            draft.addPlayerSpawn(spawnLoc);
+            SetupFeedback.sendSingleClickFeedback(player, draft.getName(), "Player Spawn (replaced)", spawnLoc);
+            player.sendMessage("§7§oPrevious spawn point replaced for SOLO course.");
+        } else {
+            // MULTIPLAYER course or first spawn: add to list
+            draft.addPlayerSpawn(spawnLoc);
+            int spawnNumber = draft.getPlayerSpawns().size();
+            SetupFeedback.sendSingleClickFeedback(player, draft.getName(), "Player Spawn #" + spawnNumber, spawnLoc);
+        }
         
         return true;
     }
@@ -197,11 +214,12 @@ public class SetupListener implements Listener {
         BlockCoord corner = new BlockCoord(worldName, blockLoc.getBlockX(), blockLoc.getBlockY(), blockLoc.getBlockZ());
         
         if (session.getPendingPoint1() == null) {
-            // First click - corner A
+            // First click - corner A (Point 1)
             session.setPendingPoint1(corner);
             
-            // Send feedback
-            SetupFeedback.sendVolumeCornerAFeedback(player, draft.getName(), "Start", blockLoc);
+            // Send clear feedback
+            player.sendMessage("§e✓ Point 1 set! Now right-click the opposite corner (Point 2) to complete the start line.");
+            SetupFeedback.sendVolumeCornerAFeedback(player, draft.getName(), "Start Line", blockLoc);
             
             return true;
         } else {
@@ -248,11 +266,12 @@ public class SetupListener implements Listener {
         BlockCoord corner = new BlockCoord(worldName, blockLoc.getBlockX(), blockLoc.getBlockY(), blockLoc.getBlockZ());
         
         if (session.getPendingPoint1() == null) {
-            // First click - corner A
+            // First click - corner A (Point 1)
             session.setPendingPoint1(corner);
             
-            // Send feedback
-            SetupFeedback.sendVolumeCornerAFeedback(player, draft.getName(), "Finish", blockLoc);
+            // Send clear feedback
+            player.sendMessage("§e✓ Point 1 set! Now right-click the opposite corner (Point 2) to complete the finish line.");
+            SetupFeedback.sendVolumeCornerAFeedback(player, draft.getName(), "Finish Line", blockLoc);
             
             return true;
         } else {
@@ -303,7 +322,8 @@ public class SetupListener implements Listener {
             session.setPendingPoint1(point);
             int checkpointIndex = draft.getCheckpoints().size() + 1;
             
-            // Send feedback
+            // Send clear feedback
+            player.sendMessage("§e✓ Checkpoint " + checkpointIndex + " - Point 1 set! Now right-click the opposite corner (Point 2).");
             SetupFeedback.sendCheckpointPoint1Feedback(player, draft.getName(), checkpointIndex, blockLoc);
             
             return true;

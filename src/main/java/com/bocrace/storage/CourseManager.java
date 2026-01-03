@@ -90,6 +90,9 @@ public class CourseManager {
         config.set("displayName", course.getName());
         config.set("fileName", safeFileName);
         config.set("type", course.getType().name());
+        if (course.getMode() != null) {
+            config.set("mode", course.getMode().name());
+        }
         // Note: status field is no longer written (tolerated on load for compatibility)
         
         // Settings (with defaults)
@@ -104,6 +107,11 @@ public class CourseManager {
         config.set("settings.drop.radius", settings.getDrop().getRadius());
         config.set("settings.drop.restoreSeconds", settings.getDrop().getRestoreSeconds());
         config.set("settings.rules.requireCheckpoints", settings.getRules().isRequireCheckpoints());
+        
+        // Boat type (for boat races only)
+        if (course.getType() == CourseType.BOAT && course.getBoatType() != null) {
+            config.set("boatType", course.getBoatType());
+        }
         
         // Course lobby spawn
         if (course.getCourseLobbySpawn() != null) {
@@ -277,6 +285,14 @@ public class CourseManager {
             writer.println("# Checkpoints are optional unless settings.rules.requireCheckpoints=true");
             writer.println("# If required, you must have at least 1 checkpoint with sequential indexing");
             writer.println();
+            if (type == CourseType.BOAT) {
+                writer.println("# === BOAT TYPE ===");
+                writer.println("# boatType: Boat type to spawn for this course (e.g., OAK_BOAT, BIRCH_BOAT, etc.)");
+                writer.println("# If not set, defaults to OAK_BOAT");
+                writer.println("# Valid types: OAK_BOAT, BIRCH_BOAT, SPRUCE_BOAT, JUNGLE_BOAT, ACACIA_BOAT,");
+                writer.println("#              DARK_OAK_BOAT, MANGROVE_BOAT, CHERRY_BOAT, BAMBOO_RAFT, PALE_OAK_BOAT");
+                writer.println();
+            }
             writer.println("# === COURSE DATA ===");
             writer.println();
             
@@ -303,6 +319,15 @@ public class CourseManager {
         // Basic info
         course.setName(config.getString("displayName", courseName));
         course.setType(CourseType.valueOf(config.getString("type", type.name())));
+        // Load mode (if missing, will be derived from spawn count)
+        if (config.contains("mode")) {
+            try {
+                course.setMode(Course.Mode.valueOf(config.getString("mode")));
+            } catch (IllegalArgumentException e) {
+                // Invalid mode, will be derived from spawn count
+                course.setMode(null);
+            }
+        }
         // Note: status field is tolerated on load for compatibility but not used
         
         // Debug log (before migration checks)
@@ -342,6 +367,11 @@ public class CourseManager {
         
         // If settings were missing, save back with defaults
         boolean needsSave = !config.contains("settings.startMode");
+        
+        // Boat type (for boat races only)
+        if (type == CourseType.BOAT && config.contains("boatType")) {
+            course.setBoatType(config.getString("boatType"));
+        }
         
         // Course lobby spawn
         if (config.contains("courseLobby.world")) {

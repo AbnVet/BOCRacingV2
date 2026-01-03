@@ -74,12 +74,34 @@ public class PlayerLifecycleListener implements Listener {
                 // Check if it's a solo run (only 1 player in course runs)
                 Map<UUID, RaceManager.ActiveRun> courseRuns = raceManager.getActiveRuns(key);
                 if (courseRuns.size() == 1) {
-                    // Database: Abort solo run (async)
+                    // Database: DQ if run started, abort if not started
                     if (plugin.getRunDao() != null) {
-                        plugin.getRunDao().abortRun(run.getRunId(), "Player left: " + reason, key.getName(), playerUuid);
+                        if (run.isStarted() && !run.isFinished()) {
+                            // Timer was running - DQ
+                            long dqMillis = System.currentTimeMillis();
+                            run.setFinishMillis(dqMillis);
+                            String dqReason = "Disconnected";
+                            if (reason.equals("kick")) {
+                                dqReason = "Kicked";
+                            }
+                            plugin.getRunDao().dqRun(run.getRunId(), dqReason, key.getName(), playerUuid);
+                        } else {
+                            // Run not started - abort
+                            plugin.getRunDao().abortRun(run.getRunId(), "Player left: " + reason, key.getName(), playerUuid);
+                        }
+                    }
+                    
+                    // Remove boat if player is in one
+                    Course course = courseManager.findCourse(key.getName());
+                    if (course != null && course.getType() == com.bocrace.model.CourseType.BOAT) {
+                        org.bukkit.entity.Boat boat = plugin.getBoatManager().findRaceBoatByPlayer(playerUuid);
+                        if (boat != null) {
+                            plugin.getBoatManager().removeRaceBoat(boat, "player_left");
+                        }
                     }
                     
                     dropBlockManager.cancelAllDrops(key);
+                    raceManager.releaseSoloLock(key, playerUuid);
                     raceManager.removeActiveRun(key, playerUuid);
                     cleanedRuns = true;
                     cleanedCourse = key.getName();
@@ -121,9 +143,30 @@ public class PlayerLifecycleListener implements Listener {
         RaceManager.ActiveRun run = raceManager.getActiveRun(key, playerUuid);
         if (run != null) {
             cleanedRuns = true;
-            // Database: Abort MP run (async)
+            // Database: DQ if run started, abort if not started
             if (plugin.getRunDao() != null) {
-                plugin.getRunDao().abortRun(run.getRunId(), "Player left: " + reason, key.getName(), playerUuid);
+                if (run.isStarted() && !run.isFinished()) {
+                    // Timer was running - DQ
+                    long dqMillis = System.currentTimeMillis();
+                    run.setFinishMillis(dqMillis);
+                    String dqReason = "Disconnected";
+                    if (reason.equals("kick")) {
+                        dqReason = "Kicked";
+                    }
+                    plugin.getRunDao().dqRun(run.getRunId(), dqReason, key.getName(), playerUuid);
+                } else {
+                    // Run not started - abort
+                    plugin.getRunDao().abortRun(run.getRunId(), "Player left: " + reason, key.getName(), playerUuid);
+                }
+            }
+            
+            // Remove boat if player is in one
+            Course course = courseManager.findCourse(key.getName());
+            if (course != null && course.getType() == com.bocrace.model.CourseType.BOAT) {
+                org.bukkit.entity.Boat boat = plugin.getBoatManager().findRaceBoatByPlayer(playerUuid);
+                if (boat != null) {
+                    plugin.getBoatManager().removeRaceBoat(boat, "player_left");
+                }
             }
         }
         raceManager.removeActiveRun(key, playerUuid);
@@ -134,11 +177,23 @@ public class PlayerLifecycleListener implements Listener {
         // Check if lobby still exists (might have been deleted if empty)
         RaceManager.MultiLobbyState updatedLobby = raceManager.getMultiLobby(key);
         if (updatedLobby == null) {
-            // Lobby was deleted (became empty) - abort all runs and cancel any pending drops
+            // Lobby was deleted (became empty) - DQ/abort all runs and cancel any pending drops
             if (plugin.getRunDao() != null) {
                 Map<UUID, RaceManager.ActiveRun> runs = raceManager.getActiveRuns(key);
+                String dqReason = "Disconnected";
+                if (reason.equals("kick")) {
+                    dqReason = "Kicked";
+                }
                 for (RaceManager.ActiveRun r : runs.values()) {
-                    plugin.getRunDao().abortRun(r.getRunId(), "Lobby emptied: " + reason, key.getName(), r.getRacerUuid());
+                    if (r.isStarted() && !r.isFinished()) {
+                        // Timer was running - DQ
+                        long dqMillis = System.currentTimeMillis();
+                        r.setFinishMillis(dqMillis);
+                        plugin.getRunDao().dqRun(r.getRunId(), dqReason, key.getName(), r.getRacerUuid());
+                    } else {
+                        // Run not started - abort
+                        plugin.getRunDao().abortRun(r.getRunId(), "Lobby emptied: " + reason, key.getName(), r.getRacerUuid());
+                    }
                 }
             }
             dropBlockManager.cancelAllDrops(key);
@@ -161,7 +216,7 @@ public class PlayerLifecycleListener implements Listener {
         if (updatedLobby.getState() == RaceManager.MultiLobbyState.LobbyState.IN_PROGRESS) {
             Map<UUID, RaceManager.ActiveRun> activeRuns = raceManager.getActiveRuns(key);
             if (activeRuns.isEmpty()) {
-                // All racers gone, cleanup (runs already aborted above)
+                // All racers gone, cleanup (runs already DQ'd/aborted above)
                 dropBlockManager.cancelAllDrops(key);
                 raceManager.clearActiveRuns(key);
                 raceManager.clearMultiLobby(key);

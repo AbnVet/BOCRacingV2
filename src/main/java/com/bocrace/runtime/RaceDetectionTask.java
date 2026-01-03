@@ -300,6 +300,25 @@ public class RaceDetectionTask extends BukkitRunnable {
             plugin.getRunDao().finishRun(run.getRunId(), finishMillis, elapsedMillis, courseKey.getName(), run.getRacerUuid());
         }
         
+        // Remove boat if player is in one (for BOAT courses)
+        Course course = courseManager.findCourse(courseKey.getName());
+        if (course != null && course.getType() == com.bocrace.model.CourseType.BOAT) {
+            org.bukkit.entity.Boat boat = plugin.getBoatManager().findRaceBoatByPlayer(run.getRacerUuid());
+            if (boat != null) {
+                plugin.getBoatManager().removeRaceBoat(boat, "race_finished");
+            }
+        }
+        
+        // Teleport to course lobby if available
+        if (course != null && course.getCourseLobbySpawn() != null) {
+            Location lobbySpawn = course.getCourseLobbySpawn();
+            // Ensure world is loaded
+            if (lobbySpawn.getWorld() != null) {
+                player.teleport(lobbySpawn);
+                player.sendMessage("§7Teleported to course lobby.");
+            }
+        }
+        
         // Debug log
         Map<String, Object> kv = new HashMap<>();
         kv.put("course", courseKey.getName());

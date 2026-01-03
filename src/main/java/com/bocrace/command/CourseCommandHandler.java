@@ -63,6 +63,8 @@ public class CourseCommandHandler implements CommandExecutor, TabCompleter {
                 return handleStats(sender, args);
             case "player":
                 return handlePlayer(sender, args);
+            case "delete":
+                return handleDelete(sender, args);
             default:
                 sendHelp(sender);
                 return true;
@@ -71,14 +73,16 @@ public class CourseCommandHandler implements CommandExecutor, TabCompleter {
     
     private void sendHelp(CommandSender sender) {
         sender.sendMessage("§6=== BOCRacingV2 Commands ===");
-        sender.sendMessage("§a/bocrace create <boatrace|airrace> <name> §7- Create a course");
+        sender.sendMessage("§6=== BOCRacingV2 Commands ===");
+        sender.sendMessage("§a/bocrace create <boatrace|airrace> <solo|multiplayer> <name> §7- Create a course");
         sender.sendMessage("§a/bocrace setup <name> <action> §7- Arm a setup action");
         sender.sendMessage("§a/bocrace status <name> §7- Show course setup progress");
         sender.sendMessage("§a/bocrace validate <name> §7- Check course validation");
+        sender.sendMessage("§a/bocrace delete <name> §7- Delete a course");
         sender.sendMessage("§a/bocrace cancel §7- Cancel current armed action");
         sender.sendMessage("§a/bocrace stats <course> §7- Show top times for a course");
         sender.sendMessage("§a/bocrace player <name|uuid> [course] §7- Show player stats");
-        sender.sendMessage("§7Actions: player_spawn, course_lobby, start, finish, checkpoint");
+        sender.sendMessage("§7Note: Setup actions are filtered by course mode (SOLO/MP)");
         sender.sendMessage("§7Note: Courses are saved immediately. Incomplete courses are blocked from use.");
     }
     
@@ -103,13 +107,14 @@ public class CourseCommandHandler implements CommandExecutor, TabCompleter {
             return true;
         }
         
-        if (args.length < 3) {
-            sender.sendMessage("§cUsage: /bocrace create <boatrace|airrace> <name>");
+        if (args.length < 4) {
+            sender.sendMessage("§cUsage: /bocrace create <boatrace|airrace> <solo|multiplayer> <name>");
             return true;
         }
         
         String typeStr = args[1].toLowerCase();
-        String courseName = args[2];
+        String modeStr = args[2].toLowerCase();
+        String courseName = args[3];
         
         // Validate type
         CourseType type;
@@ -119,6 +124,17 @@ public class CourseCommandHandler implements CommandExecutor, TabCompleter {
             type = CourseType.AIR;
         } else {
             sender.sendMessage("§cInvalid type. Use 'boatrace' or 'airrace'");
+            return true;
+        }
+        
+        // Validate mode
+        Course.Mode mode;
+        if (modeStr.equals("solo")) {
+            mode = Course.Mode.SOLO;
+        } else if (modeStr.equals("multiplayer")) {
+            mode = Course.Mode.MULTIPLAYER;
+        } else {
+            sender.sendMessage("§cInvalid mode. Use 'solo' or 'multiplayer'");
             return true;
         }
         
@@ -138,13 +154,14 @@ public class CourseCommandHandler implements CommandExecutor, TabCompleter {
             return true;
         }
         
-        // Create course
+        // Create course with explicit mode
         Course course = new Course(courseName, type);
+        course.setMode(mode);
         
         try {
             courseManager.saveCourse(course);
             sender.sendMessage("§aCourse '" + courseName + "' created!");
-            sender.sendMessage("§7Type: " + type);
+            sender.sendMessage("§7Type: " + type + " | Mode: " + mode);
             sender.sendMessage("§7Use /bocrace setup " + courseName + " <action> to configure");
         } catch (IOException e) {
             sender.sendMessage("§cFailed to save course: " + e.getMessage());
@@ -167,68 +184,129 @@ public class CourseCommandHandler implements CommandExecutor, TabCompleter {
         
         if (args.length < 3) {
             sender.sendMessage("§cUsage: /bocrace setup <name> <action>");
-            sender.sendMessage("§7Actions: player_spawn, course_lobby, start, finish, checkpoint");
-            sender.sendMessage("§7Solo: solo_join_button, solo_return_button");
-            sender.sendMessage("§7Multi: mp_lobby, mp_join_button, mp_leader_create_button, mp_leader_start_button, mp_leader_cancel_button");
+            Course course = args.length >= 2 ? courseManager.findCourse(args[1]) : null;
+            if (course != null) {
+                Course.Mode mode = course.getModeOrDefault();
+                List<String> actions = getActionsForMode(mode, course.getType());
+                sender.sendMessage("§7Available actions for " + mode + " " + course.getType() + ":");
+                for (String act : actions) {
+                    sender.sendMessage("§7  " + act);
+                }
+            } else {
+                sender.sendMessage("§7Actions are filtered by course mode. Use tab completion for available options.");
+            }
             return true;
         }
         
         String courseName = args[1];
-        String actionStr = args[2].toLowerCase();
+        String actionStr = args[2];
         
         // Find course (searches both folders)
         Course course = courseManager.findCourse(courseName);
         if (course == null) {
             sender.sendMessage("§cCourse '" + courseName + "' not found!");
-            sender.sendMessage("§7Create it first with /bocrace create <boatrace|airrace> " + courseName);
+            sender.sendMessage("§7Create it first with /bocrace create <boatrace|airrace> <solo|multiplayer> " + courseName);
             return true;
         }
         
-        // Map action string to ArmedAction
+        // Validate action is allowed for this course mode
+        Course.Mode mode = course.getModeOrDefault();
+        List<String> allowedActions = getActionsForMode(mode, course.getType());
+        String actionLower = actionStr.toLowerCase();
+        boolean actionAllowed = allowedActions.stream()
+            .anyMatch(act -> act.toLowerCase().equals(actionLower));
+        
+        if (!actionAllowed) {
+            sender.sendMessage("§cAction '" + actionStr + "' is not available for " + mode + " courses!");
+            sender.sendMessage("§7Available actions:");
+            for (String act : allowedActions) {
+                sender.sendMessage("§7  " + act);
+            }
+            return true;
+        }
+        
+        // Map action string to ArmedAction (support both old and new names)
         SetupSession.ArmedAction action;
-        switch (actionStr) {
-            case "player_spawn":
+        switch (actionLower) {
+            // New names (preferred)
+            case "setcourselobby":
+                action = SetupSession.ArmedAction.COURSE_LOBBY;
+                break;
+            case "setstartline":
+            case "setstart": // backward compat
+                action = SetupSession.ArmedAction.START;
+                break;
+            case "setfinishline":
+            case "setfinish": // backward compat
+                action = SetupSession.ArmedAction.FINISH;
+                break;
+            case "setcheckpoint":
+                action = SetupSession.ArmedAction.CHECKPOINT;
+                break;
+            case "setboatspawn":
+            case "setairspawn":
+            case "setplayerspawn": // backward compat
+            case "player_spawn": // backward compat
                 action = SetupSession.ArmedAction.PLAYER_SPAWN;
                 break;
+            case "setjoinbutton":
+            case "solo_join_button": // backward compat
+                action = SetupSession.ArmedAction.SOLO_JOIN_BUTTON;
+                break;
+            case "setreturnbutton":
+            case "solo_return_button": // backward compat
+                action = SetupSession.ArmedAction.SOLO_RETURN_BUTTON;
+                break;
+            case "setmplobby":
+            case "mp_lobby": // backward compat
+                action = SetupSession.ArmedAction.MP_LOBBY;
+                break;
+            case "setmpjoinbutton":
+            case "mp_join_button": // backward compat
+                action = SetupSession.ArmedAction.MP_JOIN_BUTTON;
+                break;
+            case "setmpleadercreatebutton":
+            case "mp_leader_create_button": // backward compat
+                action = SetupSession.ArmedAction.MP_LEADER_CREATE_BUTTON;
+                break;
+            case "setmpleaderstartbutton":
+            case "mp_leader_start_button": // backward compat
+                action = SetupSession.ArmedAction.MP_LEADER_START_BUTTON;
+                break;
+            case "setmpleadercancelbutton":
+            case "mp_leader_cancel_button": // backward compat
+                action = SetupSession.ArmedAction.MP_LEADER_CANCEL_BUTTON;
+                break;
+            case "setboattype":
+                // Special case: boat type is set via command argument, not click
+                return handleSetBoatType(sender, course, args);
+            // Old names (backward compatibility)
             case "course_lobby":
                 action = SetupSession.ArmedAction.COURSE_LOBBY;
                 break;
             case "start":
+            case "startline": // backward compat
                 action = SetupSession.ArmedAction.START;
                 break;
             case "finish":
+            case "finishline": // backward compat
                 action = SetupSession.ArmedAction.FINISH;
                 break;
             case "checkpoint":
                 action = SetupSession.ArmedAction.CHECKPOINT;
                 break;
-            case "solo_join_button":
-                action = SetupSession.ArmedAction.SOLO_JOIN_BUTTON;
-                break;
-            case "solo_return_button":
-                action = SetupSession.ArmedAction.SOLO_RETURN_BUTTON;
-                break;
-            case "mp_lobby":
-                action = SetupSession.ArmedAction.MP_LOBBY;
-                break;
-            case "mp_join_button":
-                action = SetupSession.ArmedAction.MP_JOIN_BUTTON;
-                break;
-            case "mp_leader_create_button":
-                action = SetupSession.ArmedAction.MP_LEADER_CREATE_BUTTON;
-                break;
-            case "mp_leader_start_button":
-                action = SetupSession.ArmedAction.MP_LEADER_START_BUTTON;
-                break;
-            case "mp_leader_cancel_button":
-                action = SetupSession.ArmedAction.MP_LEADER_CANCEL_BUTTON;
-                break;
             default:
                 sender.sendMessage("§cUnknown action: " + actionStr);
-                sender.sendMessage("§7Valid actions: player_spawn, course_lobby, start, finish, checkpoint");
-                sender.sendMessage("§7Solo: solo_join_button, solo_return_button");
-                sender.sendMessage("§7Multi: mp_lobby, mp_join_button, mp_leader_create_button, mp_leader_start_button, mp_leader_cancel_button");
+                sender.sendMessage("§7Available actions for " + mode + ":");
+                for (String act : allowedActions) {
+                    sender.sendMessage("§7  " + act);
+                }
                 return true;
+        }
+        
+        // Special case: SET_BOAT_TYPE is handled differently (command-based, not click-based)
+        if (action == SetupSession.ArmedAction.SET_BOAT_TYPE) {
+            return true; // Already handled in handleSetBoatType
         }
         
         // Start session
@@ -310,20 +388,28 @@ public class CourseCommandHandler implements CommandExecutor, TabCompleter {
         String folderName = course.getType() == CourseType.BOAT ? "boatracing" : "airracing";
         String filePath = "plugins/BOCRacingV2/" + folderName + "/" + safeFileName + ".yml";
         
-        // Derive mode from spawn count
+        // Get mode (explicit or derived)
+        Course.Mode courseMode = course.getModeOrDefault();
         int spawnCount = course.getPlayerSpawns().size();
-        String mode;
-        if (spawnCount == 0) {
-            mode = "§cUNSET";
-        } else if (spawnCount == 1) {
-            mode = "§eSOLO";
+        String modeDisplay;
+        if (course.getMode() != null) {
+            // Explicit mode set
+            modeDisplay = (courseMode == Course.Mode.SOLO ? "§eSOLO" : "§bMULTIPLAYER");
         } else {
-            mode = "§bMULTI";
+            // Derived from spawn count
+            if (spawnCount == 0) {
+                modeDisplay = "§cUNSET";
+            } else if (spawnCount == 1) {
+                modeDisplay = "§eSOLO (derived)";
+            } else {
+                modeDisplay = "§bMULTIPLAYER (derived)";
+            }
         }
         
         // Show status
         sender.sendMessage("§6═══ Course Status: " + course.getName() + " ═══");
         sender.sendMessage("§7Type: §f" + course.getType());
+        sender.sendMessage("§7Mode: " + modeDisplay);
         sender.sendMessage("§7File: §f" + filePath);
         sender.sendMessage("");
         
@@ -336,6 +422,10 @@ public class CourseCommandHandler implements CommandExecutor, TabCompleter {
         sender.sendMessage("  §7Start Mode: §f" + settings.getStartMode().name());
         sender.sendMessage("  §7Countdown: §f" + settings.getCountdownSeconds() + " seconds");
         sender.sendMessage("  §7Solo Cooldown: §f" + settings.getSoloCooldownSeconds() + " seconds");
+        if (course.getType() == CourseType.BOAT) {
+            String boatTypeDisplay = course.getBoatType() != null ? course.getBoatType().replace("_BOAT", "").replace("_RAFT", "").toLowerCase() : "oak (default)";
+            sender.sendMessage("  §7Boat Type: §f" + boatTypeDisplay);
+        }
         if (settings.getStartMode() == Course.StartMode.DROP_START) {
             sender.sendMessage("  §7Drop Radius: §f" + settings.getDrop().getRadius() + " blocks");
             sender.sendMessage("  §7Drop Restore: §f" + settings.getDrop().getRestoreSeconds() + " seconds");
@@ -367,7 +457,7 @@ public class CourseCommandHandler implements CommandExecutor, TabCompleter {
         boolean lobbyValid = course.getCourseLobbySpawn() != null && course.getCourseLobbySpawn().getWorld() != null;
         sender.sendMessage("  " + (lobbyValid ? "§a✓" : "§c✗") + " §7Course Lobby: " + lobbyStatus);
         
-        String spawnStatus = spawnCount + " §7(" + mode + "§7)";
+        String spawnStatus = spawnCount + " §7(" + modeDisplay + "§7)";
         sender.sendMessage("  " + (spawnCount > 0 ? "§a✓" : "§c✗") + " §7Player Spawns: §f" + spawnStatus);
         
         String startStatus = startSet ? "§aSET" : "§cMISSING";
@@ -627,6 +717,61 @@ public class CourseCommandHandler implements CommandExecutor, TabCompleter {
     }
     
     /**
+     * Handle SetBoatType command (special: command-based, not click-based)
+     */
+    private boolean handleSetBoatType(CommandSender sender, Course course, String[] args) {
+        if (course.getType() != CourseType.BOAT) {
+            sender.sendMessage("§cBoat type can only be set for boatrace courses!");
+            return true;
+        }
+        
+        if (args.length < 4) {
+            sender.sendMessage("§cUsage: /bocrace setup <name> SetBoatType <type>");
+            sender.sendMessage("§7Valid types: oak, birch, spruce, jungle, acacia, dark_oak, mangrove, cherry, bamboo, pale_oak");
+            return true;
+        }
+        
+        String boatTypeName = args[3].toLowerCase();
+        
+        // Validate boat type
+        String[] validTypes = {"oak", "birch", "spruce", "jungle", "acacia", "dark_oak", "mangrove", "cherry", "bamboo", "pale_oak"};
+        boolean isValid = false;
+        for (String validType : validTypes) {
+            if (validType.equals(boatTypeName)) {
+                isValid = true;
+                break;
+            }
+        }
+        
+        if (!isValid) {
+            sender.sendMessage("§cInvalid boat type: " + boatTypeName);
+            sender.sendMessage("§7Valid types: oak, birch, spruce, jungle, acacia, dark_oak, mangrove, cherry, bamboo, pale_oak");
+            return true;
+        }
+        
+        // Set boat type (normalize to uppercase with _BOAT suffix)
+        String normalizedType = boatTypeName.toUpperCase();
+        if (normalizedType.equals("BAMBOO")) {
+            normalizedType = "BAMBOO_RAFT";
+        } else {
+            normalizedType = normalizedType + "_BOAT";
+        }
+        
+        course.setBoatType(normalizedType);
+        
+        try {
+            courseManager.saveCourse(course);
+            sender.sendMessage("§aBoat type set to §e" + boatTypeName + " §afor course '" + course.getName() + "'!");
+            sender.sendMessage("§7New races will spawn " + boatTypeName + " boats.");
+        } catch (IOException e) {
+            sender.sendMessage("§cFailed to save course: " + e.getMessage());
+            plugin.getLogger().severe("Failed to save course: " + e.getMessage());
+        }
+        
+        return true;
+    }
+    
+    /**
      * Format milliseconds as mm:ss.SSS
      */
     private String formatTime(long millis) {
@@ -638,6 +783,46 @@ public class CourseCommandHandler implements CommandExecutor, TabCompleter {
         return String.format("%02d:%02d.%03d", minutes, seconds, milliseconds);
     }
     
+    private boolean handleDelete(CommandSender sender, String[] args) {
+        if (!hasPermission(sender, "bocrace.admin") && !hasPermission(sender, "bocrace.builder")) {
+            sender.sendMessage("§cYou don't have permission to delete courses!");
+            return true;
+        }
+        
+        if (args.length < 2) {
+            sender.sendMessage("§cUsage: /bocrace delete <name>");
+            return true;
+        }
+        
+        String courseName = args[1];
+        
+        // Find course (searches both folders)
+        Course course = courseManager.findCourse(courseName);
+        if (course == null) {
+            sender.sendMessage("§cCourse '" + courseName + "' not found!");
+            return true;
+        }
+        
+        // Get the file path
+        String safeFileName = CourseManager.toSafeFileName(courseName);
+        File courseFile = courseManager.getCourseFile(course.getType(), safeFileName);
+        
+        if (!courseFile.exists()) {
+            sender.sendMessage("§cCourse file not found: " + courseFile.getPath());
+            return true;
+        }
+        
+        // Delete the file
+        if (courseFile.delete()) {
+            sender.sendMessage("§aCourse '" + courseName + "' deleted successfully!");
+        } else {
+            sender.sendMessage("§cFailed to delete course file. Check server logs.");
+            plugin.getLogger().warning("Failed to delete course file: " + courseFile.getPath());
+        }
+        
+        return true;
+    }
+    
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         // Check permission
@@ -646,7 +831,7 @@ public class CourseCommandHandler implements CommandExecutor, TabCompleter {
         }
         
         if (args.length == 1) {
-            return Arrays.asList("create", "setup", "status", "validate", "cancel", "stats", "player").stream()
+            return Arrays.asList("create", "setup", "status", "validate", "delete", "cancel", "stats", "player").stream()
                 .filter(cmd -> cmd.startsWith(args[0].toLowerCase()))
                 .collect(Collectors.toList());
         }
@@ -658,7 +843,8 @@ public class CourseCommandHandler implements CommandExecutor, TabCompleter {
                     .filter(type -> type.startsWith(args[1].toLowerCase()))
                     .collect(Collectors.toList());
             } else if (subCommand.equals("setup") || subCommand.equals("status") || 
-                       subCommand.equals("validate") || subCommand.equals("stats")) {
+                       subCommand.equals("validate") || subCommand.equals("stats") ||
+                       subCommand.equals("delete")) {
                 // Complete course names
                 return courseManager.listAllCourses().stream()
                     .filter(name -> name.toLowerCase().startsWith(args[1].toLowerCase()))
@@ -674,12 +860,45 @@ public class CourseCommandHandler implements CommandExecutor, TabCompleter {
         
         if (args.length == 3) {
             String subCommand = args[0].toLowerCase();
-            if (subCommand.equals("setup")) {
-                return Arrays.asList("player_spawn", "course_lobby", "start", "finish", "checkpoint",
-                    "solo_join_button", "solo_return_button", "mp_lobby", "mp_join_button",
-                    "mp_leader_create_button", "mp_leader_start_button", "mp_leader_cancel_button").stream()
-                    .filter(action -> action.startsWith(args[2].toLowerCase()))
+            if (subCommand.equals("create")) {
+                // Complete mode after type
+                return Arrays.asList("solo", "multiplayer").stream()
+                    .filter(mode -> mode.startsWith(args[2].toLowerCase()))
                     .collect(Collectors.toList());
+            } else if (subCommand.equals("setup")) {
+                // Filter actions by course mode
+                String courseName = args[1];
+                Course course = courseManager.findCourse(courseName);
+                if (course != null) {
+                    Course.Mode mode = course.getModeOrDefault();
+                    List<String> actions = getActionsForMode(mode, course.getType());
+                    return actions.stream()
+                        .filter(action -> action.toLowerCase().startsWith(args[2].toLowerCase()))
+                        .collect(Collectors.toList());
+                }
+                // Fallback: show all actions if course not found
+                return Arrays.asList("SetCourseLobby", "SetStartLine", "SetFinishLine", "SetCheckpoint",
+                    "SetBoatSpawn", "SetAirSpawn", "SetBoatType", "SetJoinButton", "SetReturnButton",
+                    "SetMpLobby", "SetMpJoinButton", "SetMpLeaderCreateButton", 
+                    "SetMpLeaderStartButton", "SetMpLeaderCancelButton").stream()
+                    .filter(action -> action.toLowerCase().startsWith(args[2].toLowerCase()))
+                    .collect(Collectors.toList());
+            } else if (subCommand.equals("setup") && args.length >= 3) {
+                // Complete boat type after SetBoatType
+                String courseName = args[1];
+                Course course = courseManager.findCourse(courseName);
+                if (course != null && course.getType() == CourseType.BOAT && 
+                    args[2].toLowerCase().equals("setboattype")) {
+                    if (args.length == 3) {
+                        // They just typed SetBoatType, show all boat types
+                        return Arrays.asList("oak", "birch", "spruce", "jungle", "acacia", "dark_oak", "mangrove", "cherry", "bamboo", "pale_oak");
+                    } else if (args.length == 4) {
+                        // They're typing the boat type, filter
+                        return Arrays.asList("oak", "birch", "spruce", "jungle", "acacia", "dark_oak", "mangrove", "cherry", "bamboo", "pale_oak").stream()
+                            .filter(type -> type.toLowerCase().startsWith(args[3].toLowerCase()))
+                            .collect(Collectors.toList());
+                    }
+                }
             } else if (subCommand.equals("player") && args.length == 3) {
                 // Complete course names for player command
                 return courseManager.listAllCourses().stream()
@@ -689,5 +908,45 @@ public class CourseCommandHandler implements CommandExecutor, TabCompleter {
         }
         
         return new ArrayList<>();
+    }
+    
+    /**
+     * Get setup actions filtered by course mode and type
+     */
+    private List<String> getActionsForMode(Course.Mode mode, CourseType type) {
+        List<String> actions = new ArrayList<>();
+        
+        // Common actions for all modes
+        actions.add("SetCourseLobby");
+        actions.add("SetStartLine");
+        actions.add("SetFinishLine");
+        actions.add("SetCheckpoint");
+        
+        if (mode == Course.Mode.SOLO) {
+            // SOLO-specific actions
+            if (type == CourseType.BOAT) {
+                actions.add("SetBoatSpawn");
+                actions.add("SetBoatType");
+            } else {
+                actions.add("SetAirSpawn");
+            }
+            actions.add("SetJoinButton");
+            actions.add("SetReturnButton");
+        } else {
+            // MULTIPLAYER-specific actions
+            actions.add("SetMpLobby");
+            actions.add("SetMpJoinButton");
+            actions.add("SetMpLeaderCreateButton");
+            actions.add("SetMpLeaderStartButton");
+            actions.add("SetMpLeaderCancelButton");
+            if (type == CourseType.BOAT) {
+                actions.add("SetBoatSpawn");
+                actions.add("SetBoatType");
+            } else {
+                actions.add("SetAirSpawn");
+            }
+        }
+        
+        return actions;
     }
 }

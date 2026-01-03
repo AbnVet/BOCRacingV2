@@ -18,8 +18,17 @@ public class Course {
         DROP_START   // Timer starts at GO; blocks under racers drop briefly
     }
     
+    /**
+     * Course mode (SOLO or MULTIPLAYER)
+     */
+    public enum Mode {
+        SOLO,        // Single player course (1 spawn)
+        MULTIPLAYER  // Multiplayer course (2+ spawns)
+    }
+    
     private String name;
     private CourseType type;
+    private Mode mode; // Explicit mode (SOLO or MULTIPLAYER)
     private CourseSettings settings;
     
     // Single course lobby spawn (with yaw, pitch=0)
@@ -48,6 +57,9 @@ public class Course {
     private BlockCoord mpLeaderStartButton; // Mandatory
     private BlockCoord mpLeaderCancelButton; // Mandatory
     
+    // Boat type (for boat races only)
+    private String boatType; // null = use default (OAK_BOAT), e.g. "OAK_BOAT", "BIRCH_BOAT", etc.
+    
     public Course() {
         this.playerSpawns = new ArrayList<>();
         this.checkpoints = new ArrayList<>();
@@ -75,6 +87,26 @@ public class Course {
     
     public void setType(CourseType type) {
         this.type = type;
+    }
+    
+    public Mode getMode() {
+        return mode;
+    }
+    
+    public void setMode(Mode mode) {
+        this.mode = mode;
+    }
+    
+    /**
+     * Derive mode from spawn count if mode is not explicitly set
+     */
+    public Mode getModeOrDefault() {
+        if (mode != null) {
+            return mode;
+        }
+        // Fallback: derive from spawn count
+        int spawnCount = playerSpawns != null ? playerSpawns.size() : 0;
+        return spawnCount == 1 ? Mode.SOLO : Mode.MULTIPLAYER;
     }
     
     public Location getCourseLobbySpawn() {
@@ -182,6 +214,14 @@ public class Course {
     
     public void setMpLeaderCancelButton(BlockCoord mpLeaderCancelButton) {
         this.mpLeaderCancelButton = mpLeaderCancelButton;
+    }
+    
+    public String getBoatType() {
+        return boatType;
+    }
+    
+    public void setBoatType(String boatType) {
+        this.boatType = boatType;
     }
     
     public CourseSettings getSettings() {
